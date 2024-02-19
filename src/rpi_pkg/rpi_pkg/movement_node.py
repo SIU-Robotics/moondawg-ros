@@ -1,7 +1,11 @@
 import rclpy
 
+from rclpy.lifecycle import Node
 
-class MovementService(rclpy.Node):
+from rpi_pkg.srv import Move
+
+
+class MovementService(Node):
 
     def __init__(self):
         super().__init__('MovementService')
