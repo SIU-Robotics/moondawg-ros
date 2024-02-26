@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'movement_node = rpi_pkg.movement_node:main'
+            'movement_node = rpi_pkg.movement_node:main',
+            'control_node = rpi_pkg.controller_node:main'
         ],
     },
 )

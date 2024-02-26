@@ -1,6 +1,6 @@
 {
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.typeCheckingMode": "off",
     "python.analysis.extraPaths": [
         "C:\\Users\\Andrew\\Documents\\ROS\\ros2-windows\\Lib\\site-packages",
 

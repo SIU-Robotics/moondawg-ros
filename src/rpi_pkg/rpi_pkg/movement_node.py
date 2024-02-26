@@ -1,18 +1,19 @@
+from std_srvs.srv import Empty as Move
+
 import rclpy
-
-from rclpy.lifecycle import Node
-
-from rpi_pkg.srv import Move
+from rclpy.node import Node
 
 
 class MovementService(Node):
 
     def __init__(self):
-        super().__init__('MovementService')
+        super().__init__(node_name='movement_service')
         self.srv = self.create_service(Move, 'move', self.move_callback)
 
     def move_callback(self, request, response):
         try:
+
+            print("movement command recieved")
 
             # 
             # Add code to move the robot forward/backward
@@ -34,8 +35,6 @@ def main(args=None):
     movement_service = MovementService()
 
     rclpy.spin(movement_service)
-
-    movement_service.destroy_node()
 
     rclpy.shutdown()
 
