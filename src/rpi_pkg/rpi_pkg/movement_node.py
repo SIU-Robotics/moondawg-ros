@@ -1,21 +1,23 @@
-from std_srvs.srv import Empty as Move
+from std_msgs.msg import String
 
 import rclpy
-
 from rclpy.lifecycle import Node
 
-from rpi_pkg.srv import Move
+from rclpy.qos import ReliabilityPolicy
 import serial
 
 
 class MovementService(Node):
 
     def __init__(self):
-        super().__init__(node_name='movement_service')
-        self.srv = self.create_service(Move, 'move', self.move_callback)
+        super().__init__(node_name='movement_node')
+        self.subscription = self.create_subscription(String, 'control_commands', self.move_callback, 10)
 
-        self.ser = serial.Serial('/dev/ttyUSB0', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
+        try:
+            self.ser = serial.Serial('/dev/ttyUSB0', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
         
+        except:
+            self.get_logger().error("Failed to connect to Arduino")
 
     def send_movement_command(self, command, speed):
         # Convert command and speed to bytes
@@ -26,16 +28,13 @@ class MovementService(Node):
         self.ser.write(command_byte)
         self.ser.write(speed_byte)
 
-    def move_callback(self, request, response):
+    def move_callback(self, request):
         try:
+            self.get_logger().info("recieved" % request)
+            # self.send_movement_command(1, 100)  # Move forward with speed 100
 
-            self.send_movement_command(1, 100)  # Move forward with speed 100
-
-            response.success = True
-            response.message = 'Moving ' + request.direction
         except:
-            response.success = False
-            response.message = 'Unable to make move request.'
+            self.get_logger().error("Failed to send movement command")
 
 
 

@@ -1,39 +1,57 @@
-from std_srvs.srv import Empty as Move
-
+from std_msgs.msg import String
 import rclpy
 from rclpy.node import Node
+import keyboard
 
 
-class MinimalClientAsync(Node):
+class ControlsPublisher(Node):
 
     def __init__(self):
-        super().__init__(node_name='controller_node')
-        self.move_serv = self.create_client(Move, srv_name='movement_service')       # CHANGE
-        while not self.move_serv.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service not available, waiting again...')
-        self.req = Move.Request()                                   # CHANGE
+        super().__init__('controller_node')
+        self.publisher_ = self.create_publisher(String, 'control_commands', 10)
+        self.key_listener = keyboard.on_press(self.on_press)
+        self.get_logger().info('Starting')
 
-    def send_request(self):
+    def on_press(self, key):
+        self.get_logger().info('Key pressed: %s' % key)
+        try:
+            if key.char == 'w':
+                self.send_command('forward')
+            elif key.char == 's':
+                self.send_command('backward')
+            elif key.char == 'a':
+                self.send_command('left')
+            elif key.char == 'd':
+                self.send_command('right')
+        except:
+            self.get_logger().error('Error parsing key press')
 
-        self.future = self.move_serv.call_async(self.req)
+    def on_release(self, key):
+        self.get_logger().info('Key released: %s' % key)
+        try:
+            if key.char == 'w' or key.char == 's' or key.char == 'a' or key.char == 'd':
+                self.send_command('stop')
+        except:
+            self.get_logger().error('Error parsing key release')
+
+    def send_command(self, command):
+        self.get_logger().info('Sending command: %s' % command)
+        msg = String()
+        # msg.data = command
+        self.publisher_.publish(command)
+        self.get_logger().info('Sending' % msg.data)
+
 
 
 def main(args=None):
     rclpy.init(args=args)
 
-    minimal_client = MinimalClientAsync()
+    controller = ControlsPublisher()
 
-    while rclpy.ok():
-        cmd = input("Enter a command (w: forward, s: backward, a: left, d: right, q: quit): ")
-        if cmd == 'q':
-            break
-        elif cmd in ['w', 's', 'a', 'd']:
-            # minimal_client.req.command = cmd
-            minimal_client.send_request()
-        else:
-            print("Invalid command. Please try again.")
+    rclpy.spin(controller)
 
-    minimal_client.destroy_node()
+    controller.destroy_node()
+
     rclpy.shutdown()
 
 
