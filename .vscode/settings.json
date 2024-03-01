@@ -4,5 +4,6 @@
     "python.analysis.extraPaths": [
         "C:\\Users\\Andrew\\Documents\\ROS\\ros2-windows\\Lib\\site-packages",
 
-    ]
+    ],
+    "cmake.sourceDirectory": "/home/nasa/moondawg-ros/src/rpi_pkg"
 }

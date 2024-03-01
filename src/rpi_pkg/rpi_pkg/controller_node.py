@@ -1,6 +1,7 @@
 from std_msgs.msg import String
 import rclpy
 from rclpy.node import Node
+from pynput import keyboard
 from pynput.keyboard import Listener
 
 
@@ -9,32 +10,28 @@ class ControlsPublisher(Node):
     def __init__(self):
         super().__init__('controller_node')
         self.publisher_ = self.create_publisher(String, 'control_commands', 10)
-        # self.key_listener = Listener(on_press=self.on_press, on_release=self.on_release)
-        self.templisten()
-
-    def templisten(self):
-        while True:
-            cmd = input("Enter a command: ")
-            self.send_command(cmd)
-
+        self.key_listener = Listener(on_press=self.on_press)
+        self.key_listener.start()
 
     def on_press(self, key):
         try:
-            if key.char == 'w':
-                self.send_command('forward')
-            elif key.char == 's':
-                self.send_command('backward')
-            elif key.char == 'a':
-                self.send_command('left')
-            elif key.char == 'd':
-                self.send_command('right')
-        except:
-            self.get_logger().error('Error parsing key press')
+            self.send_command(str(key))
+            # if key.char == keyboarKeyCode.from_char("w"):
+            #     self.send_command('forward')
+            # elif key.char == 's':
+            #     self.send_command('backward')
+            # elif key.char == 'a':
+            #     self.send_command('left')
+            # elif key.char == 'd':
+            #     self.send_command('right')
+        except Exception as e:
+            self.get_logger().error('Error parsing key press: ' + e)
 
     def on_release(self, key):
         try:
-            if key.char == 'w' or key.char == 's' or key.char == 'a' or key.char == 'd':
-                self.send_command('stop')
+            print(key)
+            # if key.char == 'w' or key.char == 's' or key.char == 'a' or key.char == 'd':
+            #     self.send_command('stop')
         except:
             self.get_logger().error('Error parsing key release')
 
