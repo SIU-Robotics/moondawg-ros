@@ -14,9 +14,9 @@ class MovementService(Node):
         self.subscription = self.create_subscription(String, 'control_commands', self.move_callback, 10)
 
         try:
-            self.ser = serial.Serial('/dev/ttyUSB0', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
+            self.ser = serial.Serial('/dev/serial1', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
         
-        except:
+        except Exception as e:
             self.get_logger().error("Failed to connect to Arduino")
 
     def send_movement_command(self, command, speed):
@@ -30,7 +30,7 @@ class MovementService(Node):
 
     def move_callback(self, request):
         try:
-            self.get_logger().info("recieved" % request)
+            self.get_logger().info(request.data)
             # self.send_movement_command(1, 100)  # Move forward with speed 100
 
         except:
