@@ -2,8 +2,7 @@
     "python.analysis.autoImportCompletions": true,
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.extraPaths": [
-        "C:\\Users\\Andrew\\Documents\\ROS\\ros2-windows\\Lib\\site-packages",
-
+        "/opt/ros/humble/lib/python3.10/site-packages",
     ],
-    "cmake.sourceDirectory": "/home/nasa/moondawg-ros/src/rpi_pkg"
+    "cmake.sourceDirectory": "/home/nasa/moondawg-ros/src/moondawg",
 }

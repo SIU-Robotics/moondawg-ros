@@ -1,4 +1,4 @@
-from std_msgs.msg import String
+from std_msgs.msg import Int32MultiArray
 
 import rclpy
 from rclpy.lifecycle import Node
@@ -11,7 +11,7 @@ class MovementService(Node):
 
     def __init__(self):
         super().__init__(node_name='movement_node')
-        self.subscription = self.create_subscription(String, 'control_commands', self.move_callback, 10)
+        self.subscription = self.create_subscription(Int32MultiArray, 'gamepad_axis', self.move_callback, 10)
 
         try:
             self.ser = serial.Serial('/dev/serial1', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
@@ -30,7 +30,8 @@ class MovementService(Node):
 
     def move_callback(self, request):
         try:
-            self.get_logger().info(request.data)
+            print(request.data[0])
+            # self.get_logger().info(request)
             # self.send_movement_command(1, 100)  # Move forward with speed 100
 
         except:
