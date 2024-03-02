@@ -1,10 +1,7 @@
-from std_msgs.msg import Int32MultiArray
-
 import rclpy
+from std_msgs.msg import Int32MultiArray
 from rclpy.lifecycle import Node
-
 from rclpy.qos import ReliabilityPolicy
-import serial
 
 
 class MovementService(Node):
@@ -12,12 +9,6 @@ class MovementService(Node):
     def __init__(self):
         super().__init__(node_name='movement_node')
         self.subscription = self.create_subscription(Int32MultiArray, 'gamepad_axis', self.move_callback, 10)
-
-        try:
-            self.ser = serial.Serial('/dev/serial1', 9600)  # Replace '/dev/ttyUSB0' with the correct port and baud rate
-        
-        except Exception as e:
-            self.get_logger().error("Failed to connect to Arduino")
 
     def send_movement_command(self, command, speed):
         # Convert command and speed to bytes
