@@ -17,14 +17,14 @@ ros.on('error', function(error) {
 var axisTopic = new ROSLIB.Topic({
     ros: ros,
     name: '/gamepad_axis', // Replace with your desired topic
-    messageType: 'std_msgs/Int32MultiArray' // Replace with the topic's message type
+    messageType: 'std_msgs/Int8MultiArray' // Replace with the topic's message type
 });
 
 // Create a ROS topic
 var buttonTopic = new ROSLIB.Topic({
     ros: ros,
     name: '/gamepad_button', // Replace with your desired topic
-    messageType: 'std_msgs/Int32MultiArray' // Replace with the topic's message type
+    messageType: 'std_msgs/Int8MultiArray' // Replace with the topic's message type
 });
 
 // Subscribe to the topic
@@ -37,7 +37,7 @@ document.getElementById('subscribe-button').onclick = function() {
 // Controller polling using the Gamepad API
 window.addEventListener("gamepadconnected", function(e) {
     console.log("Gamepad connected!");
-    setInterval(readControllerData, 50); // Poll for updates
+    setInterval(readControllerData, 100); // Poll for updates
 });
 
 function readControllerData() {

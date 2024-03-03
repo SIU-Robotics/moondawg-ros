@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'movement_controller = moondawg.movement_node:main',
+            'movement_controller = moondawg.movement_controller:main',
             'control_node = moondawg.controller_node:main',
             'serial_bridge = moondawg.serial_bridge:main',
         ],
