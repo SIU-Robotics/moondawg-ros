@@ -1,10 +1,11 @@
 import rclpy
 from std_msgs.msg import Int8MultiArray
 from rclpy.lifecycle import Node
-from rclpy.qos import ReliabilityPolicy
+from sys import exit
+from os import _exit
 
 
-class MovementService(Node):
+class MovementController(Node):
 
     def __init__(self):
         super().__init__(node_name='movement_controller')
@@ -34,9 +35,16 @@ class MovementService(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    movement_service = MovementService()
+    movement_controller = MovementController()
 
-    rclpy.spin(movement_service)
+    try:
+        rclpy.spin(movement_controller)
+    except KeyboardInterrupt:
+        movement_controller.get_logger().warning('CTRL+C pressed: movement_service node stopped.')
+        try:
+            exit(130)
+        except:
+            _exit(130)
 
     rclpy.shutdown()
 
