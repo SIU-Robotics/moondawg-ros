@@ -30,9 +30,9 @@ class SerialBridge(Node):
             left_speed = max(0, min(left_speed, 90))+90
             right_speed = max(0, min(right_speed, 90))+90
 
-            message = f"m,{left_speed},{right_speed}"
+            message = f"m,{left_speed},{right_speed}X"
             
-            # self.get_logger().info(message)
+            self.get_logger().info("Sent: " + message)
             self.serial.write(message.encode())
         except Exception as e:
             self.get_logger().error("Error sending data to arduino: " + str(e))
