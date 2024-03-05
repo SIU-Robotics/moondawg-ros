@@ -16,18 +16,24 @@ class SerialBridge(Node):
 
     def serial_callback(self, data):
         try:
+
             direction = data.data[0]
             speed = (data.data[5]+100)/2
+
+            if direction < 10 and direction > -10:
+                direction = 0
+
             left_speed = speed - (direction*(speed/100))
             right_speed = speed + (direction*(speed/100))
 
 
-            left_speed = max(0, min(left_speed, 100))
-            right_speed = max(0, min(right_speed, 100))
+            left_speed = max(0, min(left_speed, 90))+90
+            right_speed = max(0, min(right_speed, 90))+90
 
             message = f"m,{left_speed},{right_speed}"
-            self.get_logger().info(message)
-            # self.serial.write(message.encode())
+            
+            # self.get_logger().info(message)
+            self.serial.write(message.encode())
         except Exception as e:
             self.get_logger().error("Error sending data to arduino: " + str(e))
 
