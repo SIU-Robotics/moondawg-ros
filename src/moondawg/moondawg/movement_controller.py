@@ -34,9 +34,9 @@ class MovementController(Node):
             # (speed + 100) * 0.9 gives a value between 0 and 180
             if direction < 0:
                 left_speed = speed
-                right_speed = speed + (direction*(speed-(stopped))/100)*1.25
+                right_speed = speed + (direction*(speed-(stopped))/100)
             elif direction > 0:
-                left_speed = speed - (direction*(speed-(stopped))/100)*1.25
+                left_speed = speed - (direction*(speed-(stopped))/100)
                 right_speed = speed
             else:
                 left_speed = speed

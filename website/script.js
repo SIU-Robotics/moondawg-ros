@@ -2,7 +2,7 @@
 
 // Connect to ROSBridge
 var ros = new ROSLIB.Ros({
-    url: 'ws://localhost:9090' // Replace with your ROSBridge server IP
+    url: 'ws://10.88.58.149:9090' // Replace with your ROSBridge server IP
 });
 
 ros.on('connection', function() {
