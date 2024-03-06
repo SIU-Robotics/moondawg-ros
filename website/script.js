@@ -2,7 +2,7 @@
 
 // Connect to ROSBridge
 var ros = new ROSLIB.Ros({
-    url: 'ws://10.88.62.194:9090' // Replace with your ROSBridge server IP
+    url: 'ws://localhost:9090' // Replace with your ROSBridge server IP
 });
 
 ros.on('connection', function() {
@@ -37,7 +37,7 @@ document.getElementById('subscribe-button').onclick = function() {
 // Controller polling using the Gamepad API
 window.addEventListener("gamepadconnected", function(e) {
     console.log("Gamepad connected!");
-    setInterval(readControllerData, 100); // Poll for updates
+    setInterval(readControllerData, 75); // Poll for updates
 });
 
 function readControllerData() {
