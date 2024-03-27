@@ -47,6 +47,9 @@ function readControllerData() {
 	return;
 	}
 
+    if (!ros.isConnected) {
+        return;
+    }
     // Display axis data
     var axisData = new ROSLIB.Message({
     	data: gamepad.axes.map(axis => parseInt(axis.toFixed(2)*100))

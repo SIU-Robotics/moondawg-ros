@@ -19,20 +19,26 @@ class MovementController(Node):
         self.button_subscription = self.create_subscription(Int8MultiArray, 'gamepad_button', self.button_callback, 10)
 
         # Register publisher for the serial topic
-        self.publisher = self.create_publisher(String, 'serial_topic', 10)
+        self.serial_publisher = self.create_publisher(String, 'serial_topic', 10)
 
         # Initialize the reverse flag
         self.reverse = False
+
+        # Initialize previous values to prevent serial flooding
+        self.dpad_up = 0
+        self.dpad_down = 0
+        self.dpad_left = 0
+        self.dpad_right = 0
 
     def move_callback(self, request):
         try:
             data = request.data
 
             # the direction the bot should go (-100 for left, 0 for striaght, 100 for right)
-            lstick_x = data[0] 
+            lstick_x = data[2] 
 
             # data.data[1] comes in as -100 (trigger not pressed) to 100 (fully pressed)
-            lstick_y = data[1]
+            lstick_y = data[3]
 
             if direction < 15 and direction > -15:
                 direction = 0
@@ -54,13 +60,9 @@ class MovementController(Node):
             left_speed = round(max(full_reverse, min(left_speed, full_forward)))
             right_speed = round(max(full_reverse, min(right_speed, full_forward)))
 
-            self.get_logger().info(f"Left speed: {left_speed}, Right speed: {right_speed}")
-
             message = String()
-            message.data = f"m,{left_speed},{right_speed}X"
-            self.publisher.publish(message)
-            # self.get_logger().info(request)
-            # self.send_movement_command(1, 100)  # Move forward with speed 100
+            message.data = f"m,{left_speed},{right_speed}"
+            self.serial_publisher.publish(message)
 
         except Exception as e:
             self.get_logger().error("Exception in gamepad axis callback:" + str(e))
@@ -69,12 +71,35 @@ class MovementController(Node):
         try:
             data = request.data
 
-            dpad_up = data[12] 
+            dpad_up = data[12]
             dpad_down = data[13]
             dpad_left = data[14]
             dpad_right = data[15]
 
-            
+            if (dpad_up != self.dpad_up):
+                message = String()
+                message.data = f"g,{dpad_up},r"
+                self.serial_publisher.publish(message)
+                self.dpad_up = dpad_up
+
+            if (dpad_down != self.dpad_down):
+                message = String()
+                message.data = f"g,{dpad_down},l"
+                self.serial_publisher.publish(message)
+                self.dpad_down = dpad_down
+
+            if (dpad_right != self.dpad_right):
+                message = String()
+                message.data = f"d,{dpad_right},0"
+                self.serial_publisher.publish(message)
+                self.dpad_right = dpad_right
+
+            if (dpad_left != self.dpad_left):
+                message = String()
+                message.data = f"b,{dpad_left},0"
+                self.serial_publisher.publish(message)
+                self.dpad_left = dpad_left
+
             
         except Exception as e:
             self.get_logger().error("Exception in gamepad button callback:" + str(e))

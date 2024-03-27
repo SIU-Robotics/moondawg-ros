@@ -22,10 +22,11 @@ class SerialBridge(Node):
     def serial_callback(self, message):
         try:
             string_to_send = message.data
-            self.get_logger().info("Wrote: " + string_to_send)
 
             if self.serial is not None:
                 self.serial.write(string_to_send.encode())
+            else:
+                self.get_logger().info("Theoretically would have wrote: " + string_to_send)
 
         except Exception as e:
             self.get_logger().error("Error sending data to arduino: " + str(e))
