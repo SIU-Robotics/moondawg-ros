@@ -18,7 +18,7 @@ class Diagnostics(Node):
         self.diagnostic_info = DiagnosticArray()
         self.diagnostic_info.status = [DiagnosticStatus(), DiagnosticStatus()]
         heartbeat_interval = 1
-        self.heartbeat = self.create_timer(heartbeat_interval, self.heartbeat)
+        self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
         self.diag_topic = self.create_publisher(DiagnosticArray, 'diagnostics', 10)
 
         # Register subscription to all nodes heartbeat

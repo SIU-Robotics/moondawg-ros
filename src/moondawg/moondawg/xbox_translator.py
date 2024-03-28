@@ -18,7 +18,7 @@ class XboxTranslator(Node):
         heartbeat_interval = 1
         self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id))
         self.diag_topic = self.create_publisher(DiagnosticStatus, 'xbox_translator_diag', 10)
-        self.heartbeat = self.create_timer(heartbeat_interval, self.heartbeat)
+        self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
 
         # set movement values
         self.full_reverse = 20
@@ -73,8 +73,6 @@ class XboxTranslator(Node):
             if (left_speed == self.left_speed and right_speed == self.right_speed):
                 return
 
-            self.get_logger().info(f"Left speed: {left_speed}, Right speed: {right_speed}")
-
             message = String()
             message.data = f"m,{left_speed},{right_speed}"
             self.serial_publisher.publish(message)
@@ -91,6 +89,8 @@ class XboxTranslator(Node):
         try:
             data = request.data
 
+
+
             dpad_up = data[12]
             dpad_down = data[13]
             dpad_left = data[14]
@@ -102,7 +102,7 @@ class XboxTranslator(Node):
                 self.serial_publisher.publish(message)
                 self.dpad_up = dpad_up
 
-            if (dpad_down != self.dpad_down):
+            elif (dpad_down != self.dpad_down):
                 message = String()
                 message.data = f"g,{dpad_down},l"
                 self.serial_publisher.publish(message)
@@ -110,13 +110,13 @@ class XboxTranslator(Node):
 
             if (dpad_right != self.dpad_right):
                 message = String()
-                message.data = f"d,{dpad_right},0"
+                message.data = f"d,{dpad_right},f"
                 self.serial_publisher.publish(message)
                 self.dpad_right = dpad_right
 
-            if (dpad_left != self.dpad_left):
+            elif (dpad_left != self.dpad_left):
                 message = String()
-                message.data = f"b,{dpad_left},0"
+                message.data = f"b,{dpad_left},f"
                 self.serial_publisher.publish(message)
                 self.dpad_left = dpad_left
 
