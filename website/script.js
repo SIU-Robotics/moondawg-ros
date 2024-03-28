@@ -1,4 +1,5 @@
-
+var gamepad_axis_prev = "null";
+var gamepad_button_prev = "null";
 
 // Connect to ROSBridge
 var ros = new ROSLIB.Ros({
@@ -27,10 +28,23 @@ var buttonTopic = new ROSLIB.Topic({
     messageType: 'std_msgs/Int8MultiArray' // Replace with the topic's message type
 });
 
+var diagnosticTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/diagnostics',
+    messageType: 'diagnostic_msgs/DiagnosticArray'
+});
+
 // Subscribe to the topic
 document.getElementById('subscribe-button').onclick = function() {
     axisTopic.subscribe(function(message) {
-        document.getElementById('data-display').innerHTML = message.data;
+        document.getElementById('axis-display').innerHTML = message.data;
+    });
+    buttonTopic.subscribe(function(message) {
+        document.getElementById('button-display').innerHTML = message.data;
+    });
+    diagnosticTopic.subscribe(function(message) {
+        console.log(message);
+        document.getElementById('diagnostic-display').innerHTML = message.toString();
     });
 };
 
@@ -39,6 +53,7 @@ window.addEventListener("gamepadconnected", function(e) {
     console.log("Gamepad connected!");
     setInterval(readControllerData, 75); // Poll for updates
 });
+
 
 function readControllerData() {
     var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
@@ -50,17 +65,33 @@ function readControllerData() {
     if (!ros.isConnected) {
         return;
     }
-    // Display axis data
-    var axisData = new ROSLIB.Message({
-    	data: gamepad.axes.map(axis => parseInt(axis.toFixed(2)*100))
-    });
+    gamepad_axis = gamepad.axes.map(axis => parseInt(axis.toFixed(2)*100))
+    gamepad_button = gamepad.buttons.map(button => button.value ? 1 : 0);
+
+    // Only publish if there is a change in data
+    if (gamepad_axis_prev.toString() != gamepad_axis.toString()) {
+        gamepad_axis_prev = gamepad_axis;
+
+        // Axis data ros message
+        var axisData = new ROSLIB.Message({
+            data: gamepad_axis
+        });
+
+        axisTopic.publish(axisData);
+    }
+    if (gamepad_button_prev.toString() != gamepad_button.toString()) {
+        gamepad_button_prev = gamepad_button
+        
+        // Display button states
+        var buttonData = new ROSLIB.Message({
+            data: gamepad_button
+        });
     
-    // Display button states
-    var buttonData = new ROSLIB.Message({
-    	data: gamepad.buttons.map(button => parseInt(button.pressed ? '1' : '0'))
-    });
-    
-    axisTopic.publish(axisData);
-    buttonTopic.publish(buttonData);
+        // console.log(gamepad.axes);
+        // console.log(gamepad.buttons.map(button => button.value));
+        
+        buttonTopic.publish(buttonData);
+    }
+
     
 }

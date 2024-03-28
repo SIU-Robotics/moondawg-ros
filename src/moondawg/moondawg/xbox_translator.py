@@ -73,6 +73,8 @@ class XboxTranslator(Node):
             if (left_speed == self.left_speed and right_speed == self.right_speed):
                 return
 
+            self.get_logger().info(f"Left speed: {left_speed}, Right speed: {right_speed}")
+
             message = String()
             message.data = f"m,{left_speed},{right_speed}"
             self.serial_publisher.publish(message)
