@@ -56,8 +56,7 @@ class SerialBridge(Node):
 
             if self.serial is not None:
                 self.serial.write(string_to_send.encode())
-            else:
-                self.get_logger().info("Theoretically would have wrote: " + message.data)
+            self.get_logger().info("Wrote: " + message.data)
 
         except Exception as e:
             self.get_logger().error("Error sending data to arduino: " + str(e))

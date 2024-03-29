@@ -21,8 +21,8 @@ class XboxTranslator(Node):
         self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
 
         # set movement values
-        self.full_reverse = 20
-        self.full_forward = 160
+        self.full_reverse = 50
+        self.full_forward = 130
         self.stopped = (self.full_reverse+self.full_forward)/2
 
         # Register subscriptions to the gamepad topics
@@ -57,8 +57,8 @@ class XboxTranslator(Node):
                 lstick_y = 0
 
             #we want to normalize the data between stopped and full_forward
-            speed = (-lstick_y/100) * self.stopped + self.stopped
-            direction = (lstick_x/100) * (self.stopped - self.full_reverse) * 0.75
+            speed = (-lstick_y) * ((self.full_forward-self.full_reverse)/200) + self.stopped
+            direction = (lstick_x) * ((self.full_forward-self.full_reverse)/200) * 0.75
 
             # For these motors, we want a value between 0 and 180, with 90 being stopped.
             # speed + 100 gives us a value between 0 and 200
