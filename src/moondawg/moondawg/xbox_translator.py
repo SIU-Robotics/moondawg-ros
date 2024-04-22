@@ -7,6 +7,13 @@ from os import _exit
 from datetime import datetime
 
 hardware_id = 0
+forward = 'f'
+backward = 'b'
+left = 'l'
+right = 'r'
+up = 'u'
+down = 'd'
+
 
 class XboxTranslator(Node):
 
@@ -25,6 +32,10 @@ class XboxTranslator(Node):
         self.full_forward = 130
         self.stopped = (self.full_reverse+self.full_forward)/2
 
+
+        self.belt_speeds = [100, 120, 130]
+        self.belt_speed = 0
+
         # Register subscriptions to the gamepad topics
         self.axis_subscription = self.create_subscription(Int8MultiArray, 'gamepad_axis', self.axis_callback, 10)
         self.button_subscription = self.create_subscription(Int8MultiArray, 'gamepad_button', self.button_callback, 10)
@@ -39,16 +50,17 @@ class XboxTranslator(Node):
         self.dpad_right = 0
         self.left_speed = 0
         self.right_speed = 0
+        self.button_x = 0
 
     def axis_callback(self, request):
         try:
             data = request.data
 
             # the direction the bot should go (-100 for left, 0 for striaght, 100 for right)
-            lstick_x = data[2] 
+            lstick_x = data[0] 
 
             # data.data[1] comes in as -100 (trigger not pressed) to 100 (fully pressed)
-            lstick_y = data[3]
+            lstick_y = data[1]
 
             if lstick_x < 15 and lstick_x > -15:
                 lstick_x = 0
@@ -85,41 +97,46 @@ class XboxTranslator(Node):
             self.diag.message = "Exception in gamepad axis callback."
             self.get_logger().error("Exception in gamepad axis callback:" + str(e))
 
+    def parse_buttons(self, data):
+        return {
+            "dpad_up": data[12], 
+            "dpad_down": data[13], 
+            "dpad_left": data[14], 
+            "dpad_right": data[15], 
+            "button_x": data[3]
+        }
+
     def button_callback(self, request):
         try:
             data = request.data
 
+            buttons = self.parse_buttons(data)
 
+            if (buttons["button_x"] and buttons["button_x"] != self.button_x):
+                self.button_x = buttons["button_x"]
+                self.belt_speed = (self.belt_speed + 1) % len(self.belt_speeds)
+            elif (buttons["button_x"] == 0):
+                self.button_x = 0
 
-            dpad_up = data[12]
-            dpad_down = data[13]
-            dpad_left = data[14]
-            dpad_right = data[15]
-
-            if (dpad_up != self.dpad_up):
-                message = String()
-                message.data = f"g,{dpad_up},r"
+            if (buttons["dpad_up"] != self.dpad_up):
+                message = self.belt_position_string(buttons["dpad_up"], up)
                 self.serial_publisher.publish(message)
-                self.dpad_up = dpad_up
+                self.dpad_up = buttons["dpad_up"]
 
-            elif (dpad_down != self.dpad_down):
-                message = String()
-                message.data = f"g,{dpad_down},l"
+            elif (buttons["dpad_down"] != self.dpad_down):
+                message = self.belt_position_string(buttons["dpad_down"], down)
                 self.serial_publisher.publish(message)
-                self.dpad_down = dpad_down
+                self.dpad_down = buttons["dpad_down"]
 
-            if (dpad_right != self.dpad_right):
-                message = String()
-                message.data = f"d,{dpad_right},f"
+            if (buttons["dpad_right"] != self.dpad_right):
+                message = self.deposit_string(buttons["dpad_right"], forward)
                 self.serial_publisher.publish(message)
-                self.dpad_right = dpad_right
+                self.dpad_right = buttons["dpad_right"]
 
-            elif (dpad_left != self.dpad_left):
-                message = String()
-                message.data = f"b,{dpad_left},f"
+            elif (buttons["dpad_left"] != self.dpad_left):
+                message = self.belt_string(buttons["dpad_left"])
                 self.serial_publisher.publish(message)
-                self.dpad_left = dpad_left
-
+                self.dpad_left = buttons["dpad_left"]
             
         except Exception as e:
             self.diag.level = DiagnosticStatus.WARN
@@ -128,6 +145,21 @@ class XboxTranslator(Node):
 
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
+
+    def deposit_string(self, enabled, direction):
+        string = String()
+        string.data = f"d,{enabled},{direction}"
+        return string
+    
+    def belt_string(self, enabled):
+        string = String()
+        string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed]}"
+        return string
+    
+    def belt_position_string(self, enabled, direction):
+        string = String()
+        string.data = f"g,{enabled},{direction}"
+        return string
 
 
 def main(args=None):
