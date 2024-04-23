@@ -51,6 +51,7 @@ class XboxTranslator(Node):
         self.left_speed = 0
         self.right_speed = 0
         self.button_x = 0
+        self.button_a = 0
 
     def axis_callback(self, request):
         try:
@@ -103,7 +104,8 @@ class XboxTranslator(Node):
             "dpad_down": data[13], 
             "dpad_left": data[14], 
             "dpad_right": data[15], 
-            "button_x": data[3]
+            "button_x": data[3],
+            "button_a": data[0]
         }
 
     def button_callback(self, request):
@@ -117,6 +119,11 @@ class XboxTranslator(Node):
                 self.belt_speed = (self.belt_speed + 1) % len(self.belt_speeds)
             elif (buttons["button_x"] == 0):
                 self.button_x = 0
+
+            if (buttons["button_a"] != self.button_a):
+                self.button_a = buttons["button_a"]
+                message = self.vibrator_string(buttons["button_a"])
+                self.serial_publisher.publish(message)
 
             if (buttons["dpad_up"] != self.dpad_up):
                 message = self.belt_position_string(buttons["dpad_up"], up)
@@ -137,6 +144,8 @@ class XboxTranslator(Node):
                 message = self.belt_string(buttons["dpad_left"])
                 self.serial_publisher.publish(message)
                 self.dpad_left = buttons["dpad_left"]
+
+            
             
         except Exception as e:
             self.diag.level = DiagnosticStatus.WARN
@@ -159,6 +168,11 @@ class XboxTranslator(Node):
     def belt_position_string(self, enabled, direction):
         string = String()
         string.data = f"g,{enabled},{direction}"
+        return string
+
+    def vibrator_string(self, enabled):
+        string = String()
+        string.data = f"v,{enabled},v"
         return string
 
 
