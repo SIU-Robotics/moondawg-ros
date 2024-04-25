@@ -43,8 +43,10 @@ document.getElementById('subscribe-button').onclick = function() {
         document.getElementById('button-display').innerHTML = message.data;
     });
     diagnosticTopic.subscribe(function(message) {
-        console.log(message);
-        document.getElementById('diagnostic-display').innerHTML = message.toString();
+
+        document.getElementById('diagnostic-display').innerHTML = message.status.map(status => {
+            status.name + " " + status.message;
+        });
     });
 };
 
