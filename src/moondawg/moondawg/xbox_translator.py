@@ -25,7 +25,7 @@ class XboxTranslator(Node):
         heartbeat_interval = 1
 
         # Initialize belt speeds and current speed
-        self.belt_speeds = [100, 120, 130]
+        self.belt_speeds = [120, 125, 180]
         self.belt_speed_index = 0
 
         # Initialize previous values to prevent serial flooding
@@ -37,6 +37,7 @@ class XboxTranslator(Node):
         self.right_speed = 0
         self.button_x = 0
         self.button_a = 0
+        self.button_y = 0
 
         # Initialize parameters
         self.declare_parameters(
@@ -124,7 +125,8 @@ class XboxTranslator(Node):
             "dpad_left": data[14], 
             "dpad_right": data[15], 
             "button_x": data[3],
-            "button_a": data[0]
+            "button_a": data[0],
+            "button_y": data[1]
         }
 
     # This function is called when the gamepad button data is received
@@ -140,6 +142,13 @@ class XboxTranslator(Node):
                 self.belt_speed = (self.belt_speed + 1) % len(self.belt_speeds)
             elif (buttons["button_x"] == 0):
                 self.button_x = 0
+
+            if (buttons["button_y"] and buttons["button_y"] != self.button_y):
+                self.button_y = buttons["button_y"]
+                message = self.belt_speed_string(buttons["button_y"], 30)
+                self.serial_publisher.publish(message)
+            elif (buttons["button_y"] == 0):
+                self.button_y = 0
 
             # If dpad up or down is pressed, move the belt up or down
             if (buttons["button_a"] != self.button_a):
@@ -189,11 +198,14 @@ class XboxTranslator(Node):
         string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed]}"
         return string
     
+    def belt_speed_string(self, enabled, speed):
+        string = String()
+        string.data = f"b,{enabled},{speed}"
+        return string
+    
     def belt_position_string(self, enabled, direction):
         string = String()
         string.data = f"g,{enabled},{direction}"
-        return string
-
         return string
         
     def movement_string(self, lspeed, rspeed):
