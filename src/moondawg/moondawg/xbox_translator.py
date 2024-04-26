@@ -43,9 +43,9 @@ class XboxTranslator(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('xbox_translator/belt_speed', Parameter.Type.INTEGER, 0),
-                ('xbox_translator/wheel_full_speed', Parameter.Type.INTEGER, 130),
-                ('xbox_translator/wheel_full_stopped', Parameter.Type.INTEGER, 90),
+                ('xbox_translator/belt_speed_index', 0),
+                ('xbox_translator/wheel_full_speed', 130),
+                ('xbox_translator/wheel_full_stopped', 90),
             ])
 
         # Initialize diagnostics
@@ -139,7 +139,7 @@ class XboxTranslator(Node):
             # If the belt speed button is pressed (X), cycle the belt speed
             if (buttons["button_x"] and buttons["button_x"] != self.button_x):
                 self.button_x = buttons["button_x"]
-                self.belt_speed = (self.belt_speed + 1) % len(self.belt_speeds)
+                self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
             elif (buttons["button_x"] == 0):
                 self.button_x = 0
 
@@ -186,7 +186,7 @@ class XboxTranslator(Node):
 
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
-        self.parameter_topic.publish(self.get_parameters())
+        # self.parameter_topic.publish(self.get_parameters())
 
     def deposit_string(self, enabled, direction):
         string = String()
@@ -195,7 +195,7 @@ class XboxTranslator(Node):
     
     def belt_string(self, enabled):
         string = String()
-        string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed]}"
+        string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed_index]}"
         return string
     
     def belt_speed_string(self, enabled, speed):
