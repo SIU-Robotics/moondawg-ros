@@ -260,7 +260,7 @@ class XboxTranslator(Node):
     
     def camera_pitch_string(self, pitch):
         string = String()
-        string.data = f"v,{pitch},0"
+        string.data = f"e,{pitch},0"
         return string
 
     def camera_angle_string(self, angle):
