@@ -37,7 +37,11 @@ class XboxTranslator(Node):
         self.right_speed = 0
         self.button_x = 0
         self.button_a = 0
-        self.button_y = 0
+        self.button_b = 0
+        
+        self.camera_pitch = 0
+        self.camera_angle = 0
+        self.camera_arm = 0
 
         # Initialize parameters
         self.declare_parameters(
@@ -70,7 +74,7 @@ class XboxTranslator(Node):
             "rstick_y": data[3]
         }
     
-    def calculate_speed(self, axis):
+    def calculate_speed(self, x, y):
 
         # Get the full forward and full reverse speeds
         full_forward = self.get_parameter('xbox_translator/wheel_full_speed').value
@@ -78,13 +82,13 @@ class XboxTranslator(Node):
         full_reverse = stopped - (full_forward - stopped)
 
         # If the sticks are close to the center, set the speeds to 0
-        if axis["lstick_x"] < 15 and axis["lstick_x"] > -15 and axis["lstick_y"] < 15 and axis["lstick_y"] > -15:
-            axis["lstick_x"] = 0
-            axis["lstick_y"] = 0
+        if x < 15 and x > -15 and y < 15 and y > -15:
+            x = 0
+            y = 0
 
         # Calculate the speeds
-        speed = (-axis["lstick_y"]) * ((full_forward-full_reverse)/200) + stopped
-        direction = (axis["lstick_x"]) * ((full_forward-full_reverse)/200) * 0.75
+        speed = (-y) * ((full_forward-full_reverse)/200) + stopped
+        direction = (x) * ((full_forward-full_reverse)/200) * 0.75
         left_speed = speed - direction
         right_speed = speed + direction
 
@@ -94,24 +98,52 @@ class XboxTranslator(Node):
 
         return left_speed, right_speed
 
+    def movement_handler(self, axis):
+
+        left_speed, right_speed = self.calculate_speed(axis['lstick_x'], axis['lstick_y'])
+
+        # If the speeds are the same as the last time, don't re-send the message            
+        if (left_speed == self.left_speed and right_speed == self.right_speed):
+            return
+        else:
+            self.left_speed = left_speed
+            self.right_speed = right_speed
+
+        # Publish the message to the serial topic
+        message = self.movement_string(left_speed, right_speed)
+        self.serial_publisher.publish(message)
+
+    def camera_position_handler(self, axis):
+        x = axis['rstick_x']
+        y = axis['rstick_y']
+        # If the sticks are close to the center, set the speeds to 0
+        if x < 15 and x > -15 and y < 15 and y > -15:
+            x = 0
+            y = 0
+            return
+        
+        if (x != 0):
+            self.camera_angle = self.camera_angle + (x * 0.05)
+        if (y != 0):
+            self.camera_pitch = self.camera_pitch + (y * -0.05)
+        
+
+        self.camera_angle = max(0, min(self.camera_angle, 180))
+        self.camera_pitch = max(0, min(self.camera_pitch, 180))
+
+        self.serial_publisher.publish(self.camera_angle_string(round(self.camera_angle)))
+        self.serial_publisher.publish(self.camera_pitch_string(round(self.camera_pitch)))
+
+        
+
     # This function is called when the gamepad axis data is received
     def axis_callback(self, request):
         try:
             # Parse the data from the request
             axis = self.parse_axis(request.data)
-            
-            left_speed, right_speed = self.calculate_speed(axis)
 
-            # If the speeds are the same as the last time, don't re-send the message            
-            if (left_speed == self.left_speed and right_speed == self.right_speed):
-                return
-            else:
-                self.left_speed = left_speed
-                self.right_speed = right_speed
-
-            # Publish the message to the serial topic
-            message = self.movement_string(left_speed, right_speed)
-            self.serial_publisher.publish(message)
+            self.movement_handler(axis)
+            self.camera_position_handler(axis)
 
         except Exception as e:
             self.diag.level = DiagnosticStatus.ERROR
@@ -124,9 +156,11 @@ class XboxTranslator(Node):
             "dpad_down": data[13], 
             "dpad_left": data[14], 
             "dpad_right": data[15], 
-            "button_x": data[3],
+            "button_x": data[2],
             "button_a": data[0],
-            "button_y": data[1]
+            "button_b": data[1],
+            "ltrigger": data[6],
+            "rtrigger": data[7],
         }
 
     # This function is called when the gamepad button data is received
@@ -143,12 +177,12 @@ class XboxTranslator(Node):
             elif (buttons["button_x"] == 0):
                 self.button_x = 0
 
-            if (buttons["button_y"] and buttons["button_y"] != self.button_y):
-                self.button_y = buttons["button_y"]
-                message = self.belt_speed_string(buttons["button_y"], 30)
+            if (buttons["button_b"] and buttons["button_b"] != self.button_b):
+                self.button_b = buttons["button_b"]
+                message = self.belt_speed_string(buttons["button_b"], 30)
                 self.serial_publisher.publish(message)
-            elif (buttons["button_y"] == 0):
-                self.button_y = 0
+            elif (buttons["button_b"] == 0):
+                self.button_b = 0
 
             # If dpad up or down is pressed, move the belt up or down
             if (buttons["button_a"] != self.button_a):
@@ -177,7 +211,14 @@ class XboxTranslator(Node):
                 self.serial_publisher.publish(message)
                 self.dpad_left = buttons["dpad_left"]
 
-            
+            if (buttons['rtrigger']):
+                self.camera_arm = self.camera_arm + 5
+                self.camera_arm = max(0, min(self.camera_arm, 180))
+                self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
+            elif (buttons['ltrigger']):
+                self.camera_arm = self.camera_arm - 5
+                self.camera_arm = max(0, min(self.camera_arm, 180))
+                self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
             
         except Exception as e:
             self.diag.level = DiagnosticStatus.WARN
@@ -215,6 +256,21 @@ class XboxTranslator(Node):
     def vibrator_string(self, enabled):
         string = String()
         string.data = f"v,{enabled},v"
+        return string
+    
+    def camera_pitch_string(self, pitch):
+        string = String()
+        string.data = f"v,{pitch},0"
+        return string
+
+    def camera_angle_string(self, angle):
+        string = String()
+        string.data = f"h,{angle},0"
+        return string
+
+    def camera_arm_string(self, angle):
+        string = String()
+        string.data = f"a,{angle},0"
         return string
 
 

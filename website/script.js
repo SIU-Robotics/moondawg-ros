@@ -71,8 +71,8 @@ function readControllerData() {
     gamepad_button = gamepad.buttons.map(button => button.value ? 1 : 0);
 
     // Only publish if there is a change in data
-    if (gamepad_axis_prev.toString() != gamepad_axis.toString()) {
-        gamepad_axis_prev = gamepad_axis;
+    //if (gamepad_axis_prev.toString() != gamepad_axis.toString()) {
+      //  gamepad_axis_prev = gamepad_axis;
 
         // Axis data ros message
         var axisData = new ROSLIB.Message({
@@ -80,9 +80,9 @@ function readControllerData() {
         });
 
         axisTopic.publish(axisData);
-    }
-    if (gamepad_button_prev.toString() != gamepad_button.toString()) {
-        gamepad_button_prev = gamepad_button
+    //}
+    //if (gamepad_button_prev.toString() != gamepad_button.toString()) {
+        //gamepad_button_prev = gamepad_button
         
         // Display button states
         var buttonData = new ROSLIB.Message({
@@ -93,7 +93,7 @@ function readControllerData() {
         // console.log(gamepad.buttons.map(button => button.value));
         
         buttonTopic.publish(buttonData);
-    }
+    //}
 
     
 }
