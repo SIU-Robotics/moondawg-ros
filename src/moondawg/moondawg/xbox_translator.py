@@ -152,9 +152,9 @@ class XboxTranslator(Node):
             return
         
         if (x != 0):
-            self.camera_angle = self.camera_angle + (x * 0.05)
+            self.camera_angle = self.camera_angle - (x * 0.05)
         if (y != 0):
-            self.camera_pitch = self.camera_pitch + (y * -0.05)
+            self.camera_pitch = self.camera_pitch - (y * -0.05)
         
 
         self.camera_angle = max(0, min(self.camera_angle, 180))
@@ -220,11 +220,11 @@ class XboxTranslator(Node):
                 self.serial_publisher.publish(message)
 
             if (buttons["dpad_up"] != self.dpad_up):
-                message = self.belt_position_string(buttons["dpad_up"], up)
+                message = self.belt_position_string(buttons["dpad_up"], left)
                 self.serial_publisher.publish(message)
                 self.dpad_up = buttons["dpad_up"]
             elif (buttons["dpad_down"] != self.dpad_down):
-                message = self.belt_position_string(buttons["dpad_down"], down)
+                message = self.belt_position_string(buttons["dpad_down"], right)
                 self.serial_publisher.publish(message)
                 self.dpad_down = buttons["dpad_down"]
 
