@@ -34,6 +34,18 @@ var diagnosticTopic = new ROSLIB.Topic({
     messageType: 'diagnostic_msgs/DiagnosticArray'
 });
 
+var imageTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/compressed_image', // Replace with your desired topic
+    messageType: 'std_msgs/String' // Replace with the topic's message type
+});
+
+imageTopic.subscribe(async function(message) {
+
+    document.getElementById("video_out").src = "data:image/jpeg;base64," + message.data;
+
+});
+
 // Subscribe to the topic
 document.getElementById('subscribe-button').onclick = function() {
     axisTopic.subscribe(function(message) {
@@ -61,49 +73,26 @@ function readControllerData() {
     var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
     
     if (gamepad == undefined) {
-	return;
+	    return;
 	}
 
     if (!ros.isConnected) {
         return;
     }
+
     gamepad_axis = gamepad.axes.map(axis => parseInt(axis.toFixed(2)*100))
     gamepad_button = gamepad.buttons.map(button => button.value ? 1 : 0);
 
-    // Only publish if there is a change in data
-    //if (gamepad_axis_prev.toString() != gamepad_axis.toString()) {
-      //  gamepad_axis_prev = gamepad_axis;
+    // Axis data ros message
+    var axisData = new ROSLIB.Message({
+        data: gamepad_axis
+    });
 
-        // Axis data ros message
-        var axisData = new ROSLIB.Message({
-            data: gamepad_axis
-        });
-
-        axisTopic.publish(axisData);
-    //}
-    //if (gamepad_button_prev.toString() != gamepad_button.toString()) {
-        //gamepad_button_prev = gamepad_button
-        
-        // Display button states
-        var buttonData = new ROSLIB.Message({
-            data: gamepad_button
-        });
+    axisTopic.publish(axisData);
     
-        // console.log(gamepad.axes);
-        // console.log(gamepad.buttons.map(button => button.value));
-        
-        buttonTopic.publish(buttonData);
-    //}
-var imageTopic = new ROSLIB.Topic({
-    ros: ros,
-    name: '/compressed_image', // Replace with your desired topic
-    messageType: 'std_msgs/String' // Replace with the topic's message type
-});
+    var buttonData = new ROSLIB.Message({
+        data: gamepad_button
+    });
 
-    
+    buttonTopic.publish(buttonData);
 }
-
-
-imageTopic.subscribe(async function(message) {
-    document.getElementById("video_out").src = "data:image/jpeg;base64," + message.data;
-});
