@@ -10,6 +10,12 @@ def generate_launch_description():
             output='screen'
         ),
         Node(
+            package='image_tools',
+            executable='cam2image',
+            name='cam2image',
+            output='screen'
+        ),
+        Node(
             package='moondawg',
             executable='xbox_translator',
             name='xbox_translator',

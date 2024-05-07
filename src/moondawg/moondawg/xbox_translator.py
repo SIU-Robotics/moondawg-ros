@@ -1,11 +1,16 @@
 from shutil import move
 from rclpy import init, shutdown, spin
 from std_msgs.msg import Int8MultiArray, String
+from sensor_msgs.msg import Image, CompressedImage
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.lifecycle import Node
 from rclpy.parameter import Parameter
 from sys import exit
 from os import _exit
+from cv_bridge import CvBridge
+import cv2
+import base64
+import numpy as np
 
 hardware_id = 0
 forward = 'f'
@@ -65,6 +70,30 @@ class XboxTranslator(Node):
 
         # Create heartbeat callback timer
         self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
+
+        
+        # Assuming 'img' is your image loaded with OpenCV
+        self.br = CvBridge()
+
+        self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
+        self.image_pub = self.create_publisher(String, 'compressed_image', 10)
+        self.temp = 0
+
+    def image_translator(self, message):
+        frame = self.br.imgmsg_to_cv2(message)
+        # Encode image to JPEG format
+        _, encoded_img = cv2.imencode('.jpg', frame)
+
+        # Convert the encoded image to bytes
+        encoded_bytes = encoded_img.tobytes()
+
+        # Encode bytes to base64
+        encoded_base64 = base64.b64encode(encoded_bytes).decode('utf-8')
+
+        img_to_pub = String()
+        img_to_pub.data = encoded_base64
+
+        self.image_pub.publish(img_to_pub)
 
     def parse_axis(self, data):
         return {

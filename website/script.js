@@ -94,6 +94,16 @@ function readControllerData() {
         
         buttonTopic.publish(buttonData);
     //}
+var imageTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/compressed_image', // Replace with your desired topic
+    messageType: 'std_msgs/String' // Replace with the topic's message type
+});
 
     
 }
+
+
+imageTopic.subscribe(async function(message) {
+    document.getElementById("video_out").src = "data:image/jpeg;base64," + message.data;
+});
