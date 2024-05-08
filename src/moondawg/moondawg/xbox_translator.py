@@ -43,8 +43,11 @@ class XboxTranslator(Node):
         self.button_x = 0
         self.button_a = 0
         self.button_b = 0
+        self.button_y = 0
+        self.lbutton = 0
+        self.rbutton = 0
         
-        self.camera_pitch = 0
+        self.camera_pitch = 100
         self.camera_angle = 0
         self.camera_arm = 0
 
@@ -75,6 +78,7 @@ class XboxTranslator(Node):
         # Assuming 'img' is your image loaded with OpenCV
         self.br = CvBridge()
 
+        camera_angle = 90
         self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
         self.image_pub = self.create_publisher(String, 'compressed_image', 10)
         self.temp = 0
@@ -143,25 +147,25 @@ class XboxTranslator(Node):
         self.serial_publisher.publish(message)
 
     def camera_position_handler(self, axis):
-        x = axis['rstick_x']
         y = axis['rstick_y']
+        
         # If the sticks are close to the center, set the speeds to 0
-        if x < 15 and x > -15 and y < 15 and y > -15:
-            x = 0
+        if y < 15 and y > -15:
             y = 0
-            return
         
-        if (x != 0):
-            self.camera_angle = self.camera_angle - (x * 0.05)
-        if (y != 0):
-            self.camera_pitch = self.camera_pitch - (y * -0.05)
-        
+        camera_angle = self.calculate_speed(0, axis['rstick_x'])[0]
+        camera_pitch = self.camera_pitch - (y * -0.05)        
 
-        self.camera_angle = max(0, min(self.camera_angle, 180))
-        self.camera_pitch = max(0, min(self.camera_pitch, 180))
+        camera_angle = max(86, min(camera_angle, 94))
+        camera_pitch = max(100, min(camera_pitch, 180))
 
-        self.serial_publisher.publish(self.camera_angle_string(round(self.camera_angle)))
-        self.serial_publisher.publish(self.camera_pitch_string(round(self.camera_pitch)))
+        if (camera_angle != self.camera_angle):
+            self.camera_angle = camera_angle
+            self.serial_publisher.publish(self.camera_angle_string(round(self.camera_angle)))
+
+        if (camera_pitch != self.camera_pitch):
+            self.serial_publisher.publish(self.camera_pitch_string(round(self.camera_pitch)))
+            self.camera_pitch = camera_pitch
 
         
 
@@ -188,6 +192,9 @@ class XboxTranslator(Node):
             "button_x": data[2],
             "button_a": data[0],
             "button_b": data[1],
+            "button_y": data[3],
+            "lbutton": data[4],
+            "rbutton": data[5],
             "ltrigger": data[6],
             "rtrigger": data[7],
         }
@@ -200,18 +207,24 @@ class XboxTranslator(Node):
             buttons = self.parse_buttons(data)
 
             # If the belt speed button is pressed (X), cycle the belt speed
-            if (buttons["button_x"] and buttons["button_x"] != self.button_x):
-                self.button_x = buttons["button_x"]
+            if (buttons["button_y"] and buttons["button_y"] != self.button_x):
+                self.button_y = buttons["button_y"]
                 self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
-            elif (buttons["button_x"] == 0):
-                self.button_x = 0
+            elif (buttons["button_y"] == 0 and buttons["button_y"] != self.button_y):
+                self.button_y = 0
 
-            if (buttons["button_b"] and buttons["button_b"] != self.button_b):
+            if (buttons["button_b"] != self.button_b):
                 self.button_b = buttons["button_b"]
                 message = self.belt_speed_string(buttons["button_b"], 30)
                 self.serial_publisher.publish(message)
-            elif (buttons["button_b"] == 0):
-                self.button_b = 0
+
+            if (buttons["rbutton"] != self.rbutton):
+                self.rbutton = buttons["rbutton"]
+                if (self.rbutton):
+                    message = self.movement_string(95, 95)
+                else:
+                    message = self.movement_string(90, 90)
+                self.serial_publisher.publish(message)
 
             # If dpad up or down is pressed, move the belt up or down
             if (buttons["button_a"] != self.button_a):
@@ -220,31 +233,29 @@ class XboxTranslator(Node):
                 self.serial_publisher.publish(message)
 
             if (buttons["dpad_up"] != self.dpad_up):
-                message = self.belt_position_string(buttons["dpad_up"], left)
+                message = self.belt_position_string(buttons["dpad_up"], right)
                 self.serial_publisher.publish(message)
                 self.dpad_up = buttons["dpad_up"]
             elif (buttons["dpad_down"] != self.dpad_down):
-                message = self.belt_position_string(buttons["dpad_down"], right)
+                message = self.belt_position_string(buttons["dpad_down"], left)
                 self.serial_publisher.publish(message)
                 self.dpad_down = buttons["dpad_down"]
 
-            # If dpad right is pressed, start depositing
-            if (buttons["dpad_right"] != self.dpad_right):
-                message = self.deposit_string(buttons["dpad_right"], forward)
+            if (buttons["button_x"] != self.button_x):
+                message = self.deposit_string(buttons["button_x"], forward)
                 self.serial_publisher.publish(message)
-                self.dpad_right = buttons["dpad_right"]
+                self.button_x = buttons["button_x"]
 
-            # If dpad left is pressed, start digging
-            elif (buttons["dpad_left"] != self.dpad_left):
-                message = self.belt_string(buttons["dpad_left"])
+            if (buttons["lbutton"] != self.lbutton):
+                message = self.belt_string(buttons["lbutton"])
                 self.serial_publisher.publish(message)
-                self.dpad_left = buttons["dpad_left"]
+                self.lbutton = buttons["lbutton"]
 
-            if (buttons['rtrigger']):
+            if (buttons['dpad_left']):
                 self.camera_arm = self.camera_arm + 5
                 self.camera_arm = max(0, min(self.camera_arm, 180))
                 self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
-            elif (buttons['ltrigger']):
+            elif (buttons['dpad_right']):
                 self.camera_arm = self.camera_arm - 5
                 self.camera_arm = max(0, min(self.camera_arm, 180))
                 self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
@@ -289,17 +300,17 @@ class XboxTranslator(Node):
     
     def camera_pitch_string(self, pitch):
         string = String()
-        string.data = f"e,{pitch},0"
+        string.data = f"e,1,{pitch}"
         return string
 
     def camera_angle_string(self, angle):
         string = String()
-        string.data = f"h,{angle},0"
+        string.data = f"h,1,{angle}"
         return string
 
     def camera_arm_string(self, angle):
         string = String()
-        string.data = f"a,{angle},0"
+        string.data = f"a,1,{angle}"
         return string
 
 
