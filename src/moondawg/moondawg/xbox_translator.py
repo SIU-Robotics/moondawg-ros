@@ -68,6 +68,7 @@ class XboxTranslator(Node):
         self.diag_topic = self.create_publisher(DiagnosticStatus, 'xbox_translator_diag', 10)
         self.connection_topic = self.create_subscription(Byte, 'connection_status', self.connection_callback, 10)
         self.connection_status = 0
+        self.connected = 0
 
         # Register subscriptions to the gamepad topics
         self.axis_subscription = self.create_subscription(Int8MultiArray, 'gamepad_axis', self.axis_callback, 10)
@@ -90,6 +91,7 @@ class XboxTranslator(Node):
 
     def connection_callback(self, message):
         self.connection_status = datetime.datetime.now()
+        self.connected = 1
 
     def image_translator(self, message):
         frame = self.br.imgmsg_to_cv2(message)
@@ -293,9 +295,11 @@ class XboxTranslator(Node):
 
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
-        if (datetime.timedelta(self.connection_status, datetime.datetime.now()).seconds > 2):
+        if (self.connected == 1 and (datetime.datetime.now() - self.connection_status).total_seconds() > 2):
+            self.connected = 0
             self.diag.level = DiagnosticStatus.ERROR
             self.diag.message = "Connection to gamepad lost."
+            self.get_logger().info("**\n**\n**\nConnection lost!!!!\n**\n**\n**")
             self.stop_all()
         # self.parameter_topic.publish(self.get_parameters())
 
