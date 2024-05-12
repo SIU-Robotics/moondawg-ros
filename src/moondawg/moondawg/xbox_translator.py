@@ -1,6 +1,6 @@
 from shutil import move
 from rclpy import init, shutdown, spin
-from std_msgs.msg import Int8MultiArray, String
+from std_msgs.msg import Int8MultiArray, String, Byte
 from sensor_msgs.msg import Image, CompressedImage
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.lifecycle import Node
@@ -11,6 +11,7 @@ from cv_bridge import CvBridge
 import cv2
 import base64
 import numpy as np
+import datetime
 
 hardware_id = 0
 forward = 'f'
@@ -46,6 +47,8 @@ class XboxTranslator(Node):
         self.button_y = 0
         self.lbutton = 0
         self.rbutton = 0
+        self.ltrigger = 0
+        self.rtrigger = 0
         
         self.camera_pitch = 100
         self.camera_angle = 0
@@ -63,6 +66,8 @@ class XboxTranslator(Node):
         # Initialize diagnostics
         self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id))
         self.diag_topic = self.create_publisher(DiagnosticStatus, 'xbox_translator_diag', 10)
+        self.connection_topic = self.create_subscription(Byte, 'connection_status', self.connection_callback, 10)
+        self.connection_status = 0
 
         # Register subscriptions to the gamepad topics
         self.axis_subscription = self.create_subscription(Int8MultiArray, 'gamepad_axis', self.axis_callback, 10)
@@ -83,10 +88,13 @@ class XboxTranslator(Node):
         self.image_pub = self.create_publisher(String, 'compressed_image', 10)
         self.temp = 0
 
+    def connection_callback(self, message):
+        self.connection_status = datetime.datetime.now()
+
     def image_translator(self, message):
         frame = self.br.imgmsg_to_cv2(message)
         # Encode image to JPEG format
-        _, encoded_img = cv2.imencode('.jpg', frame)
+        _, encoded_img = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 15])
 
         # Convert the encoded image to bytes
         encoded_bytes = encoded_img.tobytes()
@@ -185,16 +193,16 @@ class XboxTranslator(Node):
 
     def parse_buttons(self, data):
         return {
-            "dpad_up": data[12], 
-            "dpad_down": data[13], 
-            "dpad_left": data[14], 
-            "dpad_right": data[15], 
-            "button_x": data[2],
-            "button_a": data[0],
-            "button_b": data[1],
-            "button_y": data[3],
-            "lbutton": data[4],
-            "rbutton": data[5],
+            "dpad_up": data[12]/100, 
+            "dpad_down": data[13]/100, 
+            "dpad_left": data[14]/100, 
+            "dpad_right": data[15]/100, 
+            "button_x": data[2]/100,
+            "button_a": data[0]/100,
+            "button_b": data[1]/100,
+            "button_y": data[3]/100,
+            "lbutton": data[4]/100,
+            "rbutton": data[5]/100,
             "ltrigger": data[6],
             "rtrigger": data[7],
         }
@@ -221,7 +229,25 @@ class XboxTranslator(Node):
             if (buttons["rbutton"] != self.rbutton):
                 self.rbutton = buttons["rbutton"]
                 if (self.rbutton):
-                    message = self.movement_string(95, 95)
+                    message = self.movement_string(100, 100)
+                else:
+                    message = self.movement_string(90, 90)
+                self.serial_publisher.publish(message)
+
+            if (buttons['rtrigger'] != self.rtrigger):
+                self.rtrigger = buttons['rtrigger']
+                if (self.rtrigger):
+                    lspeed, rspeed = self.calculate_speed(0, -self.rtrigger)
+                    message = self.movement_string(lspeed, rspeed)
+                else:
+                    message = self.movement_string(90, 90)
+                self.serial_publisher.publish(message)
+
+            if (buttons['ltrigger'] != self.ltrigger):
+                self.ltrigger = buttons['ltrigger']
+                if (self.ltrigger):
+                    lspeed, rspeed = self.calculate_speed(0, self.ltrigger)
+                    message = self.movement_string(lspeed, rspeed)
                 else:
                     message = self.movement_string(90, 90)
                 self.serial_publisher.publish(message)
@@ -267,7 +293,27 @@ class XboxTranslator(Node):
 
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
+        if (datetime.timedelta(self.connection_status, datetime.datetime.now()).seconds > 2):
+            self.diag.level = DiagnosticStatus.ERROR
+            self.diag.message = "Connection to gamepad lost."
+            self.stop_all()
         # self.parameter_topic.publish(self.get_parameters())
+
+
+    def stop_all(self):
+        message = self.movement_string(90, 90)
+        self.serial_publisher.publish(message)
+        message = self.belt_speed_string(0, 90)
+        self.serial_publisher.publish(message)
+        message = self.belt_position_string(0, right)
+        self.serial_publisher.publish(message)
+        message = self.belt_string(0)
+        self.serial_publisher.publish(message)
+        message = self.deposit_string(0, forward)
+        self.serial_publisher.publish(message)
+        message = self.vibrator_string(0)
+        self.serial_publisher.publish(message)
+
 
     def deposit_string(self, enabled, direction):
         string = String()
