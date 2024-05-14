@@ -1,4 +1,6 @@
+from math import ceil, floor
 from shutil import move
+from time import sleep
 from rclpy import init, shutdown, spin
 from std_msgs.msg import Int8MultiArray, String, Byte
 from sensor_msgs.msg import Image, CompressedImage
@@ -31,7 +33,7 @@ class XboxTranslator(Node):
         heartbeat_interval = 1
 
         # Initialize belt speeds and current speed
-        self.belt_speeds = [120, 125, 180]
+        self.belt_speeds = [180, 125, 120]
         self.belt_speed_index = 0
 
         # Initialize previous values to prevent serial flooding
@@ -49,6 +51,10 @@ class XboxTranslator(Node):
         self.rbutton = 0
         self.ltrigger = 0
         self.rtrigger = 0
+        self.select = 0
+        self.menu = 0
+        self.lstickbutton = 0
+        self.rstickbutton = 0
         
         self.camera_pitch = 90
         self.camera_angle = 0
@@ -80,6 +86,12 @@ class XboxTranslator(Node):
         # Create heartbeat callback timer
         self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
 
+
+        self.time_start = 0
+        self.depositing = False
+        self.digging = False
+        self.auto_timer = self.create_timer(0.5, self.auto_callback)
+
         
         # Assuming 'img' is your image loaded with OpenCV
         self.br = CvBridge()
@@ -88,6 +100,48 @@ class XboxTranslator(Node):
         self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
         self.image_pub = self.create_publisher(String, 'compressed_image', 10)
         self.temp = 0
+
+    def auto_callback(self):
+        # if (self.depositing):
+        #     if (self.time_start == 0):
+        #         self.time_start = datetime.datetime.now()
+        #     diff = (datetime.datetime.now() - self.time_start).total_seconds()
+        #     if (diff > 3 and diff < 5):
+        #         self.depositing = False
+        #         self.time_start = 0
+        #         message = self.deposit_string(0, forward)
+        #         self.serial_publisher.publish(message)
+        #     elif (diff > 5 and diff < 30):
+        #         pass
+
+        if (self.digging):
+            if (self.time_start == 0):
+                self.time_start = datetime.datetime.now()
+            diff = ceil((datetime.datetime.now() - self.time_start).total_seconds())
+            if (diff < 3):
+                message = self.belt_position_string(1, left)
+                self.serial_publisher.publish(message)
+            elif (diff >= 3 and diff < 5):
+                message = self.belt_string(1)
+                self.serial_publisher.publish(message)
+            elif (diff >= 15 and diff < 17):
+                message = self.belt_position_string(0, right)
+                self.serial_publisher.publish(message)
+            # elif (diff >= 16 and diff <  and diff % 2 == 0):
+            #     message = self.movement_string(98, 98)
+            #     self.serial_publisher.publish(message)
+            # elif (diff >= 10 and diff < 30 and diff % 2 == 1):
+            #     message = self.movement_string(90, 90)
+            #     self.serial_publisher.publish(message)
+            elif (diff >= 30):
+                self.digging = False
+        elif (not self.digging and self.time_start != 0):
+            self.get_logger().info("stopping now!!")
+            self.time_start = 0
+            message = self.belt_string(0)
+            self.serial_publisher.publish(message)
+            message = self.belt_position_string(1, right)
+            self.serial_publisher.publish(message)
 
     def connection_callback(self, message):
         self.connection_status = datetime.datetime.now()
@@ -199,18 +253,22 @@ class XboxTranslator(Node):
 
     def parse_buttons(self, data):
         return {
-            "dpad_up": data[12]/100, 
-            "dpad_down": data[13]/100, 
-            "dpad_left": data[14]/100, 
-            "dpad_right": data[15]/100, 
-            "button_x": data[2]/100,
             "button_a": data[0]/100,
             "button_b": data[1]/100,
+            "button_x": data[2]/100,
             "button_y": data[3]/100,
             "lbutton": data[4]/100,
             "rbutton": data[5]/100,
             "ltrigger": data[6],
             "rtrigger": data[7],
+            "menu": data[8]/100,
+            "select": data[9]/100,
+            "lstick": data[10]/100,
+            "rstick": data[11]/100,
+            "dpad_up": data[12]/100, 
+            "dpad_down": data[13]/100, 
+            "dpad_left": data[14]/100, 
+            "dpad_right": data[15]/100,
         }
 
     # This function is called when the gamepad button data is received
@@ -220,12 +278,51 @@ class XboxTranslator(Node):
             data = request.data
             buttons = self.parse_buttons(data)
 
+            if (buttons["select"] != self.select):
+                self.select = buttons["select"]
+                if (self.select):
+                    self.digging = not self.digging
+
+            if (self.digging):
+                return
+
+            if (buttons["rstick"] != self.rstickbutton):
+                self.rstickbutton = buttons["rstick"]
+                if (self.rstickbutton):
+                    message = self.camera_arm_string(105)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_angle_string(5)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_pitch_string(99)
+                    self.serial_publisher.publish(message)
+            
+            if (buttons["lstick"] != self.lstickbutton):
+                self.lstickbutton = buttons["lstick"]
+                if (self.lstickbutton):
+                    message = self.camera_arm_string(105)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_angle_string(180)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_pitch_string(110)
+                    self.serial_publisher.publish(message)
+
+            if (buttons["menu"] != self.menu):
+                self.menu = buttons["menu"]
+                if (self.menu):
+                    message = self.camera_arm_string(180)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_angle_string(44)
+                    self.serial_publisher.publish(message)
+                    message = self.camera_pitch_string(100)
+                    self.serial_publisher.publish(message)
+
             # If the belt speed button is pressed (X), cycle the belt speed
             if (buttons["button_y"] and buttons["button_y"] != self.button_x):
                 self.button_y = buttons["button_y"]
                 self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
             elif (buttons["button_y"] == 0 and buttons["button_y"] != self.button_y):
                 self.button_y = 0
+
 
             if (buttons["button_b"] != self.button_b):
                 self.button_b = buttons["button_b"]
@@ -243,7 +340,7 @@ class XboxTranslator(Node):
             if (buttons['rtrigger'] != self.rtrigger):
                 self.rtrigger = buttons['rtrigger']
                 if (self.rtrigger):
-                    lspeed, rspeed = self.calculate_speed(0, -self.rtrigger)
+                    lspeed, rspeed = self.calculate_speed(0, -(self.rtrigger*0.8)-15)
                     message = self.movement_string(lspeed, rspeed)
                 else:
                     message = self.movement_string(90, 90)
@@ -252,7 +349,7 @@ class XboxTranslator(Node):
             if (buttons['ltrigger'] != self.ltrigger):
                 self.ltrigger = buttons['ltrigger']
                 if (self.ltrigger):
-                    lspeed, rspeed = self.calculate_speed(0, self.ltrigger)
+                    lspeed, rspeed = self.calculate_speed(0, (self.ltrigger*0.8)+15)
                     message = self.movement_string(lspeed, rspeed)
                 else:
                     message = self.movement_string(90, 90)
