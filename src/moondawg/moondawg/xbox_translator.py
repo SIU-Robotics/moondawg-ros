@@ -124,7 +124,7 @@ class XboxTranslator(Node):
             elif (diff >= 3 and diff < 5):
                 message = self.belt_string(1)
                 self.serial_publisher.publish(message)
-            elif (diff >= 15 and diff < 17):
+            elif (diff >= 17 and diff < 19):
                 message = self.belt_position_string(0, right)
                 self.serial_publisher.publish(message)
             # elif (diff >= 16 and diff <  and diff % 2 == 0):
@@ -263,8 +263,8 @@ class XboxTranslator(Node):
             "rtrigger": data[7],
             "menu": data[8]/100,
             "select": data[9]/100,
-            "lstick": data[10]/100,
-            "rstick": data[11]/100,
+            "lstick": data[11]/100,
+            "rstick": data[10]/100,
             "dpad_up": data[12]/100, 
             "dpad_down": data[13]/100, 
             "dpad_left": data[14]/100, 
@@ -289,30 +289,39 @@ class XboxTranslator(Node):
             if (buttons["rstick"] != self.rstickbutton):
                 self.rstickbutton = buttons["rstick"]
                 if (self.rstickbutton):
+                    self.camera_arm = 105
                     message = self.camera_arm_string(105)
                     self.serial_publisher.publish(message)
+                    self.camera_angle = 5
                     message = self.camera_angle_string(5)
                     self.serial_publisher.publish(message)
-                    message = self.camera_pitch_string(99)
+                    self.camera_pitch = 110
+                    message = self.camera_pitch_string(110)
                     self.serial_publisher.publish(message)
             
             if (buttons["lstick"] != self.lstickbutton):
                 self.lstickbutton = buttons["lstick"]
                 if (self.lstickbutton):
+                    self.camera_arm = 105
                     message = self.camera_arm_string(105)
                     self.serial_publisher.publish(message)
+                    self.camera_angle = 180
                     message = self.camera_angle_string(180)
                     self.serial_publisher.publish(message)
-                    message = self.camera_pitch_string(110)
+                    self.camera_pitch = 105
+                    message = self.camera_pitch_string(105)
                     self.serial_publisher.publish(message)
 
             if (buttons["menu"] != self.menu):
                 self.menu = buttons["menu"]
                 if (self.menu):
+                    self.camera_arm = 180
                     message = self.camera_arm_string(180)
                     self.serial_publisher.publish(message)
+                    self.camera_angle = 44
                     message = self.camera_angle_string(44)
                     self.serial_publisher.publish(message)
+                    self.camera_pitch = 100
                     message = self.camera_pitch_string(100)
                     self.serial_publisher.publish(message)
 
