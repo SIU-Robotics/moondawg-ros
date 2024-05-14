@@ -50,7 +50,7 @@ class XboxTranslator(Node):
         self.ltrigger = 0
         self.rtrigger = 0
         
-        self.camera_pitch = 100
+        self.camera_pitch = 90
         self.camera_angle = 0
         self.camera_arm = 0
 
@@ -96,7 +96,7 @@ class XboxTranslator(Node):
     def image_translator(self, message):
         frame = self.br.imgmsg_to_cv2(message)
         # Encode image to JPEG format
-        _, encoded_img = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 15])
+        _, encoded_img = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 20])
 
         # Convert the encoded image to bytes
         encoded_bytes = encoded_img.tobytes()
@@ -157,17 +157,21 @@ class XboxTranslator(Node):
         self.serial_publisher.publish(message)
 
     def camera_position_handler(self, axis):
+        x = axis['rstick_x']
         y = axis['rstick_y']
         
         # If the sticks are close to the center, set the speeds to 0
         if y < 15 and y > -15:
             y = 0
+
+        if x < 15 and x > -15:
+            x = 0
         
-        camera_angle = self.calculate_speed(0, axis['rstick_x'])[0]
+        camera_angle = self.camera_angle + (x * -0.05)        
         camera_pitch = self.camera_pitch - (y * -0.05)        
 
-        camera_angle = max(86, min(camera_angle, 94))
-        camera_pitch = max(100, min(camera_pitch, 180))
+        camera_angle = max(0, min(camera_angle, 180))
+        camera_pitch = max(90, min(camera_pitch, 180))
 
         if (camera_angle != self.camera_angle):
             self.camera_angle = camera_angle
