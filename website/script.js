@@ -1,7 +1,6 @@
-// Parameters
+// Parameters - change these to match the Pi
 var ip = "131.230.197.82"; // IP of the Pi
 var port = "9090"; // Port of webserver node
-//
 
 var gamepad_axis_prev = "null";
 var gamepad_button_prev = "null";
