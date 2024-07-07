@@ -1,19 +1,16 @@
-from math import ceil, floor
-from shutil import move
-from time import sleep
+from math import ceil
 from rclpy import init, shutdown, spin
 from std_msgs.msg import Int8MultiArray, String, Byte
-from sensor_msgs.msg import Image, CompressedImage
+from sensor_msgs.msg import Image
 from diagnostic_msgs.msg import DiagnosticStatus
 from rclpy.lifecycle import Node
-from rclpy.parameter import Parameter
 from sys import exit
 from os import _exit
 from cv_bridge import CvBridge
 import cv2
 import base64
-import numpy as np
 import datetime
+from .string_gen import StringGen
 
 hardware_id = 0
 forward = 'f'
@@ -96,10 +93,8 @@ class XboxTranslator(Node):
         # Assuming 'img' is your image loaded with OpenCV
         self.br = CvBridge()
 
-        camera_angle = 90
         self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
         self.image_pub = self.create_publisher(String, 'compressed_image', 10)
-        self.temp = 0
 
     def auto_callback(self):
         # if (self.depositing):
@@ -119,13 +114,13 @@ class XboxTranslator(Node):
                 self.time_start = datetime.datetime.now()
             diff = ceil((datetime.datetime.now() - self.time_start).total_seconds())
             if (diff < 3):
-                message = self.belt_position_string(1, left)
+                message = StringGen.belt_position_string(1, left)
                 self.serial_publisher.publish(message)
             elif (diff >= 3 and diff < 5):
-                message = self.belt_string(1)
+                message = StringGen.belt_string(1)
                 self.serial_publisher.publish(message)
             elif (diff >= 17 and diff < 19):
-                message = self.belt_position_string(0, right)
+                message = StringGen.belt_position_string(0, right)
                 self.serial_publisher.publish(message)
             # elif (diff >= 16 and diff <  and diff % 2 == 0):
             #     message = self.movement_string(98, 98)
@@ -138,9 +133,9 @@ class XboxTranslator(Node):
         elif (not self.digging and self.time_start != 0):
             self.get_logger().info("stopping now!!")
             self.time_start = 0
-            message = self.belt_string(0)
+            message = StringGen.belt_string(0)
             self.serial_publisher.publish(message)
-            message = self.belt_position_string(1, right)
+            message = StringGen.belt_position_string(1, right)
             self.serial_publisher.publish(message)
 
     def connection_callback(self, message):
@@ -207,7 +202,7 @@ class XboxTranslator(Node):
             self.right_speed = right_speed
 
         # Publish the message to the serial topic
-        message = self.movement_string(left_speed, right_speed)
+        message = StringGen.movement_string(left_speed, right_speed)
         self.serial_publisher.publish(message)
 
     def camera_position_handler(self, axis):
@@ -229,7 +224,7 @@ class XboxTranslator(Node):
 
         if (camera_angle != self.camera_angle):
             self.camera_angle = camera_angle
-            self.serial_publisher.publish(self.camera_angle_string(round(self.camera_angle)))
+            self.serial_publisher.publish(StringGen.camera_angle_string(round(self.camera_angle)))
 
         if (camera_pitch != self.camera_pitch):
             self.serial_publisher.publish(self.camera_pitch_string(round(self.camera_pitch)))
@@ -290,39 +285,39 @@ class XboxTranslator(Node):
                 self.rstickbutton = buttons["rstick"]
                 if (self.rstickbutton):
                     self.camera_arm = 105
-                    message = self.camera_arm_string(105)
+                    message = StringGen.camera_arm_string(105)
                     self.serial_publisher.publish(message)
                     self.camera_angle = 5
-                    message = self.camera_angle_string(5)
+                    message = StringGen.camera_angle_string(5)
                     self.serial_publisher.publish(message)
                     self.camera_pitch = 110
-                    message = self.camera_pitch_string(110)
+                    message = StringGen.camera_pitch_string(110)
                     self.serial_publisher.publish(message)
             
             if (buttons["lstick"] != self.lstickbutton):
                 self.lstickbutton = buttons["lstick"]
                 if (self.lstickbutton):
                     self.camera_arm = 105
-                    message = self.camera_arm_string(105)
+                    message = StringGen.camera_arm_string(105)
                     self.serial_publisher.publish(message)
                     self.camera_angle = 180
-                    message = self.camera_angle_string(180)
+                    message = StringGen.camera_angle_string(180)
                     self.serial_publisher.publish(message)
                     self.camera_pitch = 105
-                    message = self.camera_pitch_string(105)
+                    message = StringGen.camera_pitch_string(105)
                     self.serial_publisher.publish(message)
 
             if (buttons["menu"] != self.menu):
                 self.menu = buttons["menu"]
                 if (self.menu):
                     self.camera_arm = 180
-                    message = self.camera_arm_string(180)
+                    message = StringGen.camera_arm_string(180)
                     self.serial_publisher.publish(message)
                     self.camera_angle = 44
-                    message = self.camera_angle_string(44)
+                    message = StringGen.camera_angle_string(44)
                     self.serial_publisher.publish(message)
                     self.camera_pitch = 100
-                    message = self.camera_pitch_string(100)
+                    message = StringGen.camera_pitch_string(100)
                     self.serial_publisher.publish(message)
 
             # If the belt speed button is pressed (X), cycle the belt speed
@@ -335,68 +330,68 @@ class XboxTranslator(Node):
 
             if (buttons["button_b"] != self.button_b):
                 self.button_b = buttons["button_b"]
-                message = self.belt_speed_string(buttons["button_b"], 30)
+                message = StringGen.belt_speed_string(buttons["button_b"], 30)
                 self.serial_publisher.publish(message)
 
             if (buttons["rbutton"] != self.rbutton):
                 self.rbutton = buttons["rbutton"]
                 if (self.rbutton):
-                    message = self.movement_string(100, 100)
+                    message = StringGen.movement_string(100, 100)
                 else:
-                    message = self.movement_string(90, 90)
+                    message = StringGen.movement_string(90, 90)
                 self.serial_publisher.publish(message)
 
             if (buttons['rtrigger'] != self.rtrigger):
                 self.rtrigger = buttons['rtrigger']
                 if (self.rtrigger):
                     lspeed, rspeed = self.calculate_speed(0, -(self.rtrigger*0.8)-15)
-                    message = self.movement_string(lspeed, rspeed)
+                    message = StringGen.movement_string(lspeed, rspeed)
                 else:
-                    message = self.movement_string(90, 90)
+                    message = StringGen.movement_string(90, 90)
                 self.serial_publisher.publish(message)
 
             if (buttons['ltrigger'] != self.ltrigger):
                 self.ltrigger = buttons['ltrigger']
                 if (self.ltrigger):
                     lspeed, rspeed = self.calculate_speed(0, (self.ltrigger*0.8)+15)
-                    message = self.movement_string(lspeed, rspeed)
+                    message = StringGen.movement_string(lspeed, rspeed)
                 else:
-                    message = self.movement_string(90, 90)
+                    message = StringGen.movement_string(90, 90)
                 self.serial_publisher.publish(message)
 
             # If dpad up or down is pressed, move the belt up or down
             if (buttons["button_a"] != self.button_a):
                 self.button_a = buttons["button_a"]
-                message = self.vibrator_string(buttons["button_a"])
+                message = StringGen.vibrator_string(buttons["button_a"])
                 self.serial_publisher.publish(message)
 
             if (buttons["dpad_up"] != self.dpad_up):
-                message = self.belt_position_string(buttons["dpad_up"], right)
+                message = StringGen.belt_position_string(buttons["dpad_up"], right)
                 self.serial_publisher.publish(message)
                 self.dpad_up = buttons["dpad_up"]
             elif (buttons["dpad_down"] != self.dpad_down):
-                message = self.belt_position_string(buttons["dpad_down"], left)
+                message = StringGen.belt_position_string(buttons["dpad_down"], left)
                 self.serial_publisher.publish(message)
                 self.dpad_down = buttons["dpad_down"]
 
             if (buttons["button_x"] != self.button_x):
-                message = self.deposit_string(buttons["button_x"], forward)
+                message = StringGen.deposit_string(buttons["button_x"], forward)
                 self.serial_publisher.publish(message)
                 self.button_x = buttons["button_x"]
 
             if (buttons["lbutton"] != self.lbutton):
-                message = self.belt_string(buttons["lbutton"])
+                message = StringGen.belt_string(buttons["lbutton"])
                 self.serial_publisher.publish(message)
                 self.lbutton = buttons["lbutton"]
 
             if (buttons['dpad_left']):
                 self.camera_arm = self.camera_arm + 5
                 self.camera_arm = max(0, min(self.camera_arm, 180))
-                self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
+                self.serial_publisher.publish(StringGen.camera_arm_string(round(self.camera_arm)))
             elif (buttons['dpad_right']):
                 self.camera_arm = self.camera_arm - 5
                 self.camera_arm = max(0, min(self.camera_arm, 180))
-                self.serial_publisher.publish(self.camera_arm_string(round(self.camera_arm)))
+                self.serial_publisher.publish(StringGen.camera_arm_string(round(self.camera_arm)))
             
         except Exception as e:
             self.diag.level = DiagnosticStatus.WARN
@@ -415,63 +410,23 @@ class XboxTranslator(Node):
 
 
     def stop_all(self):
-        message = self.movement_string(90, 90)
-        self.serial_publisher.publish(message)
-        message = self.belt_speed_string(0, 90)
-        self.serial_publisher.publish(message)
-        message = self.belt_position_string(0, right)
-        self.serial_publisher.publish(message)
-        message = self.belt_string(0)
-        self.serial_publisher.publish(message)
-        message = self.deposit_string(0, forward)
-        self.serial_publisher.publish(message)
-        message = self.vibrator_string(0)
+        message = StringGen.movement_string(90, 90)
         self.serial_publisher.publish(message)
 
+        message = StringGen.belt_speed_string(0, 90)
+        self.serial_publisher.publish(message)
 
-    def deposit_string(self, enabled, direction):
-        string = String()
-        string.data = f"d,{enabled},{direction}"
-        return string
-    
-    def belt_string(self, enabled):
-        string = String()
-        string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed_index]}"
-        return string
-    
-    def belt_speed_string(self, enabled, speed):
-        string = String()
-        string.data = f"b,{enabled},{speed}"
-        return string
-    
-    def belt_position_string(self, enabled, direction):
-        string = String()
-        string.data = f"g,{enabled},{direction}"
-        return string
-        
-    def movement_string(self, lspeed, rspeed):
-        string = String()
-        string.data = f"m,{lspeed},{rspeed}"
-        return string
-    def vibrator_string(self, enabled):
-        string = String()
-        string.data = f"v,{enabled},v"
-        return string
-    
-    def camera_pitch_string(self, pitch):
-        string = String()
-        string.data = f"e,1,{pitch}"
-        return string
+        message = StringGen.belt_position_string(0, right)
+        self.serial_publisher.publish(message)
 
-    def camera_angle_string(self, angle):
-        string = String()
-        string.data = f"h,1,{angle}"
-        return string
+        message = StringGen.belt_string(0)
+        self.serial_publisher.publish(message)
 
-    def camera_arm_string(self, angle):
-        string = String()
-        string.data = f"a,1,{angle}"
-        return string
+        message = StringGen.deposit_string(0, forward)
+        self.serial_publisher.publish(message)
+
+        message = StringGen.vibrator_string(0)
+        self.serial_publisher.publish(message)
 
 
 def main(args=None):

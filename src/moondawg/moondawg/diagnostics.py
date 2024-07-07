@@ -10,7 +10,6 @@ import time
 
 class Diagnostics(Node):
 
-
     def __init__(self):
         super().__init__(node_name='diagnostics')
 
