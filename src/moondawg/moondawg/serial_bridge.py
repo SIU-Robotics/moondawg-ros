@@ -16,9 +16,9 @@ class SerialBridge(Node):
 
         # create heartbeat
         heartbeat_interval = 1
-        self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id))
+        self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id), message="Waiting to connect...")
         self.diag_topic = self.create_publisher(DiagnosticStatus, 'serial_bridge_diag', 10)
-        self.heartbeat = self.create_timer(heartbeat_interval, self.heartbeat)
+        self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
 
         # establish serial connection
         self.rate = 9600
@@ -39,26 +39,24 @@ class SerialBridge(Node):
         try:
             self.serial = Serial(port=self.port, baudrate=self.rate)
         except SerialException:
-            self.serial_retry_timer = self.create_timer(2, self.retry_serial)
             self.get_logger().error("Could not open connection to Arduino. Retrying in 2.0s")
             self.serial = None
             self.diag.level = DiagnosticStatus.ERROR
             self.diag.message = "No serial connection."
-            sleep(2)
         if self.serial is not None:
+            self.get_logger().info("Serial connected.")
             self.diag.level = DiagnosticStatus.OK
             self.diag.message = "Serial connected."
-            self.serial_retry_timer.cancel()
+            self.serial_retry_timer.destroy()
 
 
     def serial_callback(self, message):
         try:
-            string_to_send = message.data
+            string_to_send = message.data + "\n"
 
             if self.serial is not None:
                 self.serial.write(string_to_send.encode())
-            else:
-                self.get_logger().info("Theoretically would have wrote: " + string_to_send)
+            self.get_logger().info("Wrote: " + message.data)
 
         except Exception as e:
             self.get_logger().error("Error sending data to arduino: " + str(e))

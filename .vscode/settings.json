@@ -1,8 +1,0 @@
-{
-    "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "off",
-    "python.analysis.extraPaths": [
-        "/opt/ros/humble/lib/python3.10/site-packages",
-    ],
-    "cmake.sourceDirectory": "/home/nasa/moondawg-ros/src/moondawg",
-}

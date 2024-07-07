@@ -4,11 +4,15 @@
     <title>Xbox ROS Interface</title>
 </head>
 <body>
-    <h1>Xbox Controller Data</h1>
-    <div id="data-display"></div>
+    <h1>Xbox controller panel</h1>
+    <div id="axis-display"></div>
+    <div id="button-display"></div>
+    <div id="diagnostic-display"></div>
     <button id="subscribe-button">Subscribe</button>
+    <br><br>
+    <img src="novideo.png" id="video_out" width="800" height="600"></img>
 
-    <script src="https://cdn.jsdelivr.net/npm/roslib@1.0.1/build/roslib.min.js"></script>
+    <script src="roslib.min.js"></script>
     <script src="script.js"></script> </body>
 </html>
 
