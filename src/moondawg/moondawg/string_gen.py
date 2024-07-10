@@ -9,9 +9,9 @@ class StringGen():
         return string
     
     @staticmethod
-    def belt_string(self, enabled):
+    def belt_string(self, enabled, speed):
         string = String()
-        string.data = f"b,{enabled},{self.belt_speeds[self.belt_speed_index]}"
+        string.data = f"b,{enabled},{speed}"
         return string
     
     @staticmethod
