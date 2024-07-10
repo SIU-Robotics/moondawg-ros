@@ -37,44 +37,69 @@ class SerialBridge(Node):
                 if self.serial is not None:
                     try:
                         self.serial.baudrate = self.rate
-                        self.serial.close()
+                        if self.serial.is_open:
+                            self.serial.close()
                         self.serial.open()
                         self.get_logger().info(f"Serial baudrate set to {self.rate}")
-                    except SerialException:
-                        self.get_logger().error(f"Failed to set baudrate to {self.rate}")
-                        self.diag.level = DiagnosticStatus.ERROR
+                    except SerialException as e:
+                        self.diag.level = DiagnosticStatus.WARN
                         self.diag.message = "Failure while setting baudrate."
-                        self.serial = None
+                        self.get_logger().error(self.diag.message + ": " + str(e))
+                        try:
+                            self.serial.baudrate = self.rate
+                            if self.serial.is_open:
+                                self.serial.close()
+                            self.serial.open()
+                            self.get_logger().info(f"Serial baudrate set to {self.rate}")
+                        except SerialException as e:
+                            self.diag.level = DiagnosticStatus.ERROR
+                            self.diag.message = "Failed to recover from baudrate set failure."
+                            self.get_logger().error(self.diag.message + ": " + str(e))
+                            if self.serial_retry_timer.is_canceled():
+                                self.serial_retry_timer.reset()
+                        finally:
+                            return rclpy.parameter.SetParametersResult(successful=False)
             elif param.name == 'port' and param.value != self.port:
                 self.port = param.value
                 if self.serial is not None:
                     try:
-                        self.serial.port = self.port
-                        self.serial.close()
+                        self.serial.port = param.value
+                        if self.serial.is_open:
+                            self.serial.close()
                         self.serial.open()
                         self.get_logger().info(f"Serial port set to {self.port}")
-                    except SerialException:
-                        self.get_logger().error(f"Failed to bind to new port {self.port}")
-                        self.diag.level = DiagnosticStatus.ERROR
-                        self.diag.message = "Failure while setting port."
-                        self.serial = None
-        return rclpy.parameter.ParameterEvent()
+                    except SerialException as e:
+                        self.diag.level = DiagnosticStatus.WARN
+                        self.diag.message = f"Failed to bind to port {self.port}"
+                        self.get_logger().error(self.diag.message + ": " + str(e))
+                        try:
+                            self.serial.port = self.port
+                            if self.serial.is_open:
+                                self.serial.close()
+                            self.serial.open()
+                            self.get_logger().info(f"Serial port set to {self.port}")
+                        except SerialException as e:
+                            self.diag.level = DiagnosticStatus.ERROR
+                            self.diag.message = "Failed to recover from port bind failure."
+                            self.get_logger().error(self.diag.message + ": " + str(e))
+                            if self.serial_retry_timer.is_canceled():
+                                self.serial_retry_timer.reset()
+                        finally:
+                            return rclpy.parameter.SetParametersResult(successful=False)
+        return rclpy.parameter.SetParametersResult(successful=True)
     
     def connect_serial(self):
-        if self.serial is not None:
-            return
-
         try:
             self.serial = Serial(port=self.port, baudrate=self.rate)
             self.get_logger().info("Serial connected.")
             self.diag.level = DiagnosticStatus.OK
             self.diag.message = "Serial connected."
+            self.serial_retry_timer.cancel()
         except SerialException as e:
             self.get_logger().error(f"Could not open connection to Arduino: {e}. Retrying in 5s")
             self.serial = None
-            if self.diag.level != DiagnosticStatus.ERROR:
-                self.diag.level = DiagnosticStatus.ERROR
-                self.diag.message = "Failure while trying to open serial connection."
+            self.diag.level = DiagnosticStatus.ERROR
+            self.diag.message = "Failure while trying to open serial connection."
 
     def serial_callback(self, message):
         if self.serial is None:
@@ -91,6 +116,10 @@ class SerialBridge(Node):
         except Exception as e:
             self.get_logger().error(f"Unexpected error: {e}")
 
+    def destroy(self):
+        if self.serial is not None:
+            self.serial.close()
+        super().destroy()
             
     def heartbeat(self):
         self.diag.header.stamp = self.get_clock().now().to_msg()

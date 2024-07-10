@@ -13,6 +13,7 @@ import datetime
 from .string_gen import StringGen
 
 hardware_id = 0
+belt_reverse_speed = 30
 forward = 'f'
 backward = 'b'
 left = 'l'
@@ -240,7 +241,7 @@ class XboxTranslator(Node):
 
     def belt_handler(self, buttons):
 
-        if (buttons["button_y"] and buttons["button_y"] != self.button_x):
+        if (buttons["button_y"] and buttons["button_y"] != self.button_y):
             self.button_y = buttons["button_y"]
             self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
         elif (buttons["button_y"] == 0 and buttons["button_y"] != self.button_y):
@@ -248,17 +249,18 @@ class XboxTranslator(Node):
 
         if (buttons["button_b"] != self.button_b):
             self.button_b = buttons["button_b"]
-            self.serial_publisher.publish(StringGen.belt_speed_string(buttons["button_b"], 30))
+            self.serial_publisher.publish(StringGen.belt_speed_string(buttons["button_b"], belt_reverse_speed))
 
         if (buttons["dpad_up"] != self.dpad_up):
             self.serial_publisher.publish(StringGen.belt_position_string(buttons["dpad_up"], right))
             self.dpad_up = buttons["dpad_up"]
-        elif (buttons["dpad_down"] != self.dpad_down):
+        
+        if (buttons["dpad_down"] != self.dpad_down):
             self.serial_publisher.publish(StringGen.belt_position_string(buttons["dpad_down"], left))
             self.dpad_down = buttons["dpad_down"]
 
         if (buttons["lbutton"] != self.lbutton):
-            self.serial_publisher.publish(StringGen.belt_string(buttons["lbutton"]))
+            self.serial_publisher.publish(StringGen.belt_string(buttons["lbutton"], self.belt_speeds[self.belt_speed_index]))
             self.lbutton = buttons["lbutton"]
 
     def button_movement_handler(self, buttons):

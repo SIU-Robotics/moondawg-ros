@@ -12,6 +12,7 @@ class Diagnostics(Node):
 
         # create heartbeat
         self.diagnostic_info = DiagnosticArray()
+        self.diagnostic_info.status = []
         heartbeat_interval = 1
         self.heartbeat_timer = self.create_timer(heartbeat_interval, self.heartbeat)
         self.diag_topic = self.create_publisher(DiagnosticArray, 'diagnostics', 10)
@@ -25,10 +26,13 @@ class Diagnostics(Node):
 
     def update_diag(self, info: DiagnosticStatus):
         try:
-            id = info.node_id
-            self.diagnostic_info.status[id] = info
-            self.get_logger().info(f'Updated diagnostic info for hardware_id: {id}')
-        except (ValueError, IndexError) as e:
+            for status in self.diagnostic_info.status:
+                if status.hardware_id == info.hardware_id:
+                    status = info
+                    self.get_logger().debug(f'Updated diagnostic info for hardware_id: {info.hardware_id}')
+                else:
+                    self.diagnostic_info.status.append(info)
+        except Exception as e:
             self.get_logger().error(f'Failed to update diagnostic info: {e}')
 
     def heartbeat(self):
