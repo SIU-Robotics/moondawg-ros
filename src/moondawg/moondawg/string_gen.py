@@ -9,7 +9,7 @@ class StringGen():
         return string
     
     @staticmethod
-    def belt_string(self, enabled, speed):
+    def belt_string(enabled, speed):
         string = String()
         string.data = f"b,{enabled},{speed}"
         return string
