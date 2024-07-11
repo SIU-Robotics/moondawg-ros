@@ -121,7 +121,6 @@ class SerialBridge(Node):
         super().destroy()
             
     def heartbeat(self):
-        self.diag.header = Header(stamp=self.get_clock().now().to_msg())
         self.diag_topic.publish(self.diag)
         
         if self.get_logger().get_effective_level() <= rclpy.logging.LoggingSeverity.DEBUG:
