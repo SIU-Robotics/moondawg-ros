@@ -2,7 +2,7 @@ from serial import Serial, SerialException
 from sys import exit
 import rclpy
 from rclpy.lifecycle import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Header
 from diagnostic_msgs.msg import DiagnosticStatus
 
 hardware_id = 1
@@ -97,7 +97,6 @@ class SerialBridge(Node):
             self.serial_retry_timer.cancel()
         except SerialException as e:
             self.get_logger().error(f"Could not open connection to Arduino: {e}. Retrying in 5s")
-            self.serial = None
             self.diag.level = DiagnosticStatus.ERROR
             self.diag.message = "Failure while trying to open serial connection."
 
@@ -122,7 +121,7 @@ class SerialBridge(Node):
         super().destroy()
             
     def heartbeat(self):
-        self.diag.header.stamp = self.get_clock().now().to_msg()
+        self.diag.header = Header(stamp=self.get_clock().now().to_msg())
         self.diag_topic.publish(self.diag)
         
         if self.get_logger().get_effective_level() <= rclpy.logging.LoggingSeverity.DEBUG:
