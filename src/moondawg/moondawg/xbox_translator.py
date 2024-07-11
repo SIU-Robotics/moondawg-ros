@@ -63,6 +63,7 @@ class XboxTranslator(Node):
 
         self.init_vars()
         self.declare_parameters(
+            namespace='',
             parameters=[
                 ('belt_speed_index', 0),
                 ('wheel_full_speed', 130),
