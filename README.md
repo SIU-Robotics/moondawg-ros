@@ -10,7 +10,7 @@
 This package is made for ROS2 humble, ensure it is installed and sourced on Ubuntu 22.04.
 ### Misc packages
 ```bash
-sudo apt install blah blah blah
+sudo apt install python3-opencv ros-humble-rosbridge-suite 
 ```
 
 ## Installation
