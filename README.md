@@ -57,6 +57,9 @@ Launches all the necessary nodes for the `moondawg-ros` package.
 
 - **rate**: Baud rate for serial communication (default: 9600).
 - **port**: Serial port (default: `/dev/ttyACM0`).
+- **belt_speed_index**: The index into the belt speed array for which belt speed to use (default: 0).
+- **wheel_full_speed**: The fastest forward speed of the wheel motors (default: 130).
+- **wheel_full_stopped**: The value for a stopped wheel motor (default: 90).
 
 ## Web Interface
 
