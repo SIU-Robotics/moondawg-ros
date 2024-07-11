@@ -64,9 +64,9 @@ class XboxTranslator(Node):
         self.init_vars()
         self.declare_parameters(
             parameters=[
-                ('xbox_translator/belt_speed_index', 0),
-                ('xbox_translator/wheel_full_speed', 130),
-                ('xbox_translator/wheel_full_stopped', 90),
+                ('belt_speed_index', 0),
+                ('wheel_full_speed', 130),
+                ('wheel_full_stopped', 90),
             ])
         
         self.br = CvBridge()
