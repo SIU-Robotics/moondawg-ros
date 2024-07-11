@@ -39,7 +39,7 @@ class Diagnostics(Node):
         current_time = self.get_clock().now().to_msg()
         self.diagnostic_info.header = Header(stamp=current_time)
         self.diag_topic.publish(self.diagnostic_info)
-        self.get_logger().info('Heartbeat published')
+        self.get_logger().debug('Heartbeat published')
 
 
 
