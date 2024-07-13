@@ -115,10 +115,9 @@ class SerialBridge(Node):
         except Exception as e:
             self.get_logger().error(f"Unexpected error: {e}")
 
-    def destroy(self):
+    def stop(self):
         if self.serial is not None:
             self.serial.close()
-        super().destroy()
             
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
@@ -137,7 +136,7 @@ def main(args=None):
     except KeyboardInterrupt:
         serial_bridge.get_logger().warning('Ctrl-C pressed, shutting down...')
     finally:
-        rclpy.shutdown()
+        serial_bridge.stop()
         exit(130)
 
 if __name__ == '__main__': 

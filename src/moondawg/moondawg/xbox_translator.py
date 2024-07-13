@@ -357,7 +357,7 @@ def main(args=None):
     except KeyboardInterrupt:
         xbox_translator.get_logger().warning('Ctrl-C pressed, shutting down...')
     finally:
-        rclpy.shutdown()
+        xbox_translator.stop_all()
         exit(130)
 
 if __name__ == '__main__':
