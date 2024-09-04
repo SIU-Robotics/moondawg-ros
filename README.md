@@ -4,16 +4,19 @@
 
 `moondawg-ros` is a ROS2 package designed to interface with SIU's Lunabotics robot, providing functionalities for Xbox controller input, serial communication, and diagnostics. The package includes several nodes and scripts to facilitate these operations.
 
-
 ## Prerequisites
-### ROS2 Humble
-This package is made for ROS2 humble, ensure it is installed and sourced on Ubuntu 22.04.
-### Misc packages
+- ROS2 Humble
+This package is made for ROS2 humble, ensure it is installed and sourced on Ubuntu 22.04. (see https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
+- ROS2 packages
 ```bash
-sudo apt install python3-opencv ros-humble-rosbridge-suite 
+sudo apt install ros-humble-cv-bridge ros-humble-rosbridge-suite ros-humble-image-tools
+```
+- Python modules
+```bash
+sudo apt install python3-opencv python3-serial
 ```
 
-## Installation
+## Running the package
 1. Clone the repository:
 ```bash
 git clone https://github.com/SIU-Robotics/moondawg-ros.git
@@ -30,26 +33,21 @@ colcon build
 source install/setup.bash
 ```
 
-## Nodes
+4. Run:
+```bash
+ros2 launch moondawg moondawg.launch.py
+```
 
+## Nodes
 ### xbox_translator
 
 Translates Xbox controller inputs to Arduino-parsable messages.
 
 ### serial_bridge
-
-Bridges serial communication between the Raspberry Pi and the Arduino.
+Sends strings via serial to configured port (default: /dev/ttyACM0).
 
 ### diagnostics
-
 Provides diagnostic information about the package's status.
-
-## Launch Files
-
-### moondawg.launch.py
-
-Launches all the necessary nodes for the `moondawg-ros` package.
-
 
 ## Configuration
 
