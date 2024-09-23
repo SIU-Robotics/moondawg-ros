@@ -358,6 +358,7 @@ def main(args=None):
         xbox_translator.get_logger().warning('Ctrl-C pressed, shutting down...')
     finally:
         xbox_translator.stop_all()
+        rclpy.shutdown()
         exit(130)
 
 if __name__ == '__main__':

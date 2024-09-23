@@ -53,6 +53,7 @@ def main(args=None):
     except KeyboardInterrupt:
         diagnostic_node.get_logger().warning('Ctrl-C pressed, shutting down...')
     finally:
+        rclpy.shutdown()
         exit(130)
 
 if __name__ == '__main__':

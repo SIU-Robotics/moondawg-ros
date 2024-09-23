@@ -137,6 +137,7 @@ def main(args=None):
         serial_bridge.get_logger().warning('Ctrl-C pressed, shutting down...')
     finally:
         serial_bridge.stop()
+        rclpy.shutdown()
         exit(130)
 
 if __name__ == '__main__': 
