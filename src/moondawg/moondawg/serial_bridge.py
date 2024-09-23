@@ -123,7 +123,8 @@ class SerialBridge(Node):
     def stop(self):
         if self.serial is not None:
             self.serial.close()
-            
+    
+    # called on an interval to publish info about the node
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
         
@@ -131,6 +132,7 @@ class SerialBridge(Node):
             self.get_logger().debug("Heartbeat published with diagnostic status: "
                                f"Level: {self.diag.level}, Message: {self.diag.message}")
 
+# start node
 def main(args=None): 
     rclpy.init(args=args)
 

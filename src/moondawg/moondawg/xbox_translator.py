@@ -21,6 +21,7 @@ right = 'r'
 up = 'u'
 down = 'd'
 
+# handle the controller data and send a parsable string to the serial node
 class XboxTranslator(Node):
 
     def init_vars(self):
@@ -114,30 +115,48 @@ class XboxTranslator(Node):
         _, encoded_img = cv2.imencode('.jpg', self.br.imgmsg_to_cv2(message), [cv2.IMWRITE_JPEG_QUALITY, 20])
         self.image_pub.publish(String(data=base64.b64encode(encoded_img.tobytes()).decode('utf-8')))
 
+    # parse controller data from website to be easily referenced
     def parse_axis(self, data):
         return {
             "lstick_x": data[0],
             "lstick_y": data[1],
             "rstick_x": data[2],
             "rstick_y": data[3]
+        }    
+        
+    def parse_buttons(self, data):
+        return {
+            "button_a": data[0]/100,
+            "button_b": data[1]/100,
+            "button_x": data[2]/100,
+            "button_y": data[3]/100,
+            "lbutton": data[4]/100,
+            "rbutton": data[5]/100,
+            "ltrigger": data[6],
+            "rtrigger": data[7],
+            "menu": data[8]/100,
+            "select": data[9]/100,
+            "lstick": data[11]/100,
+            "rstick": data[10]/100,
+            "dpad_up": data[12]/100, 
+            "dpad_down": data[13]/100, 
+            "dpad_left": data[14]/100, 
+            "dpad_right": data[15]/100,
         }
-    
-    def calculate_speed(self, x, y):
-        full_forward = self.get_parameter('xbox_translator/wheel_full_speed').value
-        stopped = self.get_parameter('xbox_translator/wheel_full_stopped').value
-        full_reverse = stopped - (full_forward - stopped)
 
-        if abs(x) < 15 and abs(y) < 15:
-            x = 0
-            y = 0
+    # This function is called when the gamepad axis data is received
+    def axis_callback(self, request):
+        try:
+            # Parse the data from the request
+            axis = self.parse_axis(request.data)
 
-        speed = (-y) * ((full_forward-full_reverse)/200) + stopped
-        direction = (x) * ((full_forward-full_reverse)/200) * 0.75
+            self.movement_stick_handler(axis)
+            self.camera_stick_handler(axis)
 
-        left_speed = round(max(full_reverse, min(speed - direction, full_forward)))
-        right_speed = round(max(full_reverse, min(speed + direction, full_forward)))
-
-        return left_speed, right_speed
+        except Exception as e:
+            self.diag.level = DiagnosticStatus.ERROR
+            self.diag.message = "Exception in gamepad axis callback."
+            self.get_logger().error("Exception in gamepad axis callback:" + str(e))
 
     def movement_stick_handler(self, axis):
         left_speed, right_speed = self.calculate_speed(axis['lstick_x'], axis['lstick_y'])
@@ -169,42 +188,25 @@ class XboxTranslator(Node):
         if (camera_pitch != self.camera_pitch):
             self.camera_pitch = camera_pitch
             self.serial_publisher.publish(StringGen.camera_pitch_string(round(self.camera_pitch)))
+    
+    def calculate_speed(self, x_axis, y_axis):
+        full_forward = self.get_parameter('xbox_translator/wheel_full_speed').value
+        stopped = self.get_parameter('xbox_translator/wheel_full_stopped').value
+        full_reverse = stopped - (full_forward - stopped)
 
+        if abs(x_axis) < 15 and abs(y_axis) < 15:
+            x_axis = 0
+            y_axis = 0
 
-    # This function is called when the gamepad axis data is received
-    def axis_callback(self, request):
-        try:
-            # Parse the data from the request
-            axis = self.parse_axis(request.data)
+        speed = (-y_axis) * ((full_forward-full_reverse)/200) + stopped
+        direction = (x_axis) * ((full_forward-full_reverse)/200) * 0.75
 
-            self.movement_stick_handler(axis)
-            self.camera_stick_handler(axis)
+        left_speed = round(max(full_reverse, min(speed - direction, full_forward)))
+        right_speed = round(max(full_reverse, min(speed + direction, full_forward)))
 
-        except Exception as e:
-            self.diag.level = DiagnosticStatus.ERROR
-            self.diag.message = "Exception in gamepad axis callback."
-            self.get_logger().error("Exception in gamepad axis callback:" + str(e))
+        return left_speed, right_speed
 
-    def parse_buttons(self, data):
-        return {
-            "button_a": data[0]/100,
-            "button_b": data[1]/100,
-            "button_x": data[2]/100,
-            "button_y": data[3]/100,
-            "lbutton": data[4]/100,
-            "rbutton": data[5]/100,
-            "ltrigger": data[6],
-            "rtrigger": data[7],
-            "menu": data[8]/100,
-            "select": data[9]/100,
-            "lstick": data[11]/100,
-            "rstick": data[10]/100,
-            "dpad_up": data[12]/100, 
-            "dpad_down": data[13]/100, 
-            "dpad_left": data[14]/100, 
-            "dpad_right": data[15]/100,
-        }
-
+    # checks if autonomy is running
     def check_auto(self, buttons):
         if (buttons["select"] != self.select):
             self.select = buttons["select"]
@@ -309,6 +311,7 @@ class XboxTranslator(Node):
             self.camera_arm = max(0, min(self.camera_arm, 180))
             self.serial_publisher.publish(StringGen.camera_arm_string(round(self.camera_arm)))
 
+    # called when website sends controller data
     def button_callback(self, request):
         try:
             data = request.data
@@ -329,7 +332,7 @@ class XboxTranslator(Node):
             self.diag.message = "Exception in gamepad button callback."
             self.get_logger().error("Exception in gamepad button callback:" + str(e))
 
-    
+    # called when everything must stop!
     def stop_all(self):
         self.serial_publisher.publish(StringGen.movement_string(90, 90))
         self.serial_publisher.publish(StringGen.belt_speed_string(0, 90))
@@ -338,6 +341,7 @@ class XboxTranslator(Node):
         self.serial_publisher.publish(StringGen.deposit_string(0, forward))
         self.serial_publisher.publish(StringGen.vibrator_string(0))
 
+    # called on an interval to publish info about the node
     def heartbeat(self):
         self.diag_topic.publish(self.diag)
         if (self.connected == 1 and (datetime.datetime.now() - self.connection_time).total_seconds() > 2):
@@ -347,9 +351,7 @@ class XboxTranslator(Node):
             self.get_logger().info("**\n**\n**\nConnection lost!!!!\n**\n**\n**")
             self.stop_all()
 
-
-
-
+# start node
 def main(args=None):
     rclpy.init(args=args)
 

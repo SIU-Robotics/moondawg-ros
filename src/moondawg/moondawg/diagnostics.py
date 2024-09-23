@@ -35,14 +35,14 @@ class Diagnostics(Node):
         except Exception as e:
             self.get_logger().error(f'Failed to update diagnostic info: {e}')
 
+    # called on an interval to publish node info to be read in on the website
     def heartbeat(self):
         current_time = self.get_clock().now().to_msg()
         self.diagnostic_info.header = Header(stamp=current_time)
         self.diag_topic.publish(self.diagnostic_info)
         self.get_logger().debug('Heartbeat published')
 
-
-
+# start node
 def main(args=None):
     rclpy.init(args=args)
 
