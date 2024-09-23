@@ -71,8 +71,9 @@ class XboxTranslator(Node):
             ])
         
         self.br = CvBridge()
-
         self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id))
+
+        # create subscriptions, publishers, and timers
         self.diag_topic = self.create_publisher(DiagnosticStatus, 'xbox_translator_diag', 10)
         self.connection_topic = self.create_subscription(Byte, 'connection_status', self.connection_callback, 10)
         self.axis_subscription = self.create_subscription(Int8MultiArray, 'gamepad_axis', self.axis_callback, 10)
@@ -83,7 +84,7 @@ class XboxTranslator(Node):
         self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
         self.image_pub = self.create_publisher(String, 'compressed_image', 10)
 
-
+    # subroutine to dig without input
     def auto_callback(self):
         if (self.digging):
             if (self.time_start == 0):
@@ -103,10 +104,12 @@ class XboxTranslator(Node):
             self.serial_publisher.publish(StringGen.belt_string(0))
             self.serial_publisher.publish(StringGen.belt_position_string(1, right))
 
+    # called by website, tracks last time connected
     def connection_callback(self, message):
         self.connection_time = datetime.datetime.now()
         self.connected = 1
 
+    # convert camera image to compressed base64
     def image_translator(self, message):
         _, encoded_img = cv2.imencode('.jpg', self.br.imgmsg_to_cv2(message), [cv2.IMWRITE_JPEG_QUALITY, 20])
         self.image_pub.publish(String(data=base64.b64encode(encoded_img.tobytes()).decode('utf-8')))

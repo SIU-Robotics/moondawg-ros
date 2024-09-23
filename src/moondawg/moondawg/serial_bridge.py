@@ -32,14 +32,15 @@ class SerialBridge(Node):
 
     def set_parameters(self, params):
         for param in params:
+            # Try to set new baudrate
             if param.name == 'rate' and param.value != self.rate:
-                self.rate = param.value
                 if self.serial is not None:
                     try:
-                        self.serial.baudrate = self.rate
+                        self.serial.baudrate = param.value
                         if self.serial.is_open:
                             self.serial.close()
                         self.serial.open()
+                        self.rate = param.value
                         self.get_logger().info(f"Serial baudrate set to {self.rate}")
                     except SerialException as e:
                         self.diag.level = DiagnosticStatus.WARN
@@ -59,6 +60,7 @@ class SerialBridge(Node):
                                 self.serial_retry_timer.reset()
                         finally:
                             return rclpy.parameter.SetParametersResult(successful=False)
+            # Try to open serial on new port
             elif param.name == 'port' and param.value != self.port:
                 self.port = param.value
                 if self.serial is not None:
@@ -88,6 +90,7 @@ class SerialBridge(Node):
                             return rclpy.parameter.SetParametersResult(successful=False)
         return rclpy.parameter.SetParametersResult(successful=True)
     
+    # connect to arduino
     def connect_serial(self):
         try:
             self.serial = Serial(port=self.port, baudrate=self.rate)
@@ -100,11 +103,13 @@ class SerialBridge(Node):
             self.diag.level = DiagnosticStatus.ERROR
             self.diag.message = "Failure while trying to open serial connection."
 
+    # send message over serial
     def serial_callback(self, message):
         if self.serial is None:
             self.get_logger().warn("Failed to send packet: Serial connection is not established.")
             return
 
+        # C needs the newline character appended, using "read_until('\n')"
         string_to_send = message.data + "\n"
         try:
             self.serial.write(string_to_send.encode())
