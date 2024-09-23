@@ -255,7 +255,7 @@ class XboxTranslator(Node):
 
         if (buttons["button_b"] != self.button_b):
             self.button_b = buttons["button_b"]
-            self.serial_publisher.publish(StringGen.belt_speed_string(buttons["button_b"], belt_reverse_speed))
+            self.serial_publisher.publish(StringGen.belt_string(buttons["button_b"], belt_reverse_speed))
 
         if (buttons["dpad_up"] != self.dpad_up):
             self.serial_publisher.publish(StringGen.belt_position_string(buttons["dpad_up"], right))
@@ -335,9 +335,8 @@ class XboxTranslator(Node):
     # called when everything must stop!
     def stop_all(self):
         self.serial_publisher.publish(StringGen.movement_string(90, 90))
-        self.serial_publisher.publish(StringGen.belt_speed_string(0, 90))
+        self.serial_publisher.publish(StringGen.belt_string(0, 90))
         self.serial_publisher.publish(StringGen.belt_position_string(0, right))
-        self.serial_publisher.publish(StringGen.belt_string(0))
         self.serial_publisher.publish(StringGen.deposit_string(0, forward))
         self.serial_publisher.publish(StringGen.vibrator_string(0))
 
