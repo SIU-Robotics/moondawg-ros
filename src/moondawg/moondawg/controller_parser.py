@@ -66,8 +66,6 @@ class ControllerParser(Node):
             namespace='',
             parameters=[
                 ('belt_speed_index', 0),
-                # ('wheel_full_speed', 130),
-                # ('wheel_full_stopped', 90),
             ])
         
         self.br = CvBridge()
@@ -190,8 +188,8 @@ class ControllerParser(Node):
             self.serial_publisher.publish(StringGen.camera_pitch_string(round(self.camera_pitch)))
     
     def calculate_speed(self, x_axis, y_axis):
-        full_forward = self.get_parameter('xbox_translator/wheel_full_speed').value
-        stopped = self.get_parameter('xbox_translator/wheel_full_stopped').value
+        full_forward = 130
+        stopped = 90
         full_reverse = stopped - (full_forward - stopped)
 
         if abs(x_axis) < 15 and abs(y_axis) < 15:
