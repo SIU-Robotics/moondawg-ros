@@ -51,6 +51,11 @@ var imageTopic = new ROSLIB.Topic({
     messageType: 'std_msgs/String'
 });
 
+// Parameters
+ros.getParams(function(params) {
+    document.getElementById('params-display').innerHTML = params;
+});
+
 // Subscribe to topics
 imageTopic.subscribe(function(message) {
     document.getElementById("video_out").src = "data:image/jpeg;base64," + message.data;
