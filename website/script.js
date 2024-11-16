@@ -37,22 +37,17 @@ var connectionTopic = new ROSLIB.Topic({
 });
 var axisTopic = new ROSLIB.Topic({
     ros: ros,
-    name: '/gamepad_axis',
+    name: '/controller_parser/gamepad_axis',
     messageType: 'std_msgs/Int8MultiArray'
 });
 var buttonTopic = new ROSLIB.Topic({
     ros: ros,
-    name: '/gamepad_button',
+    name: '/controller_parser/gamepad_button',
     messageType: 'std_msgs/Int8MultiArray'
-});
-var diagnosticTopic = new ROSLIB.Topic({ // Diagnostics not yet used
-    ros: ros,
-    name: '/diagnostics',
-    messageType: 'diagnostic_msgs/DiagnosticArray'
 });
 var imageTopic = new ROSLIB.Topic({
     ros: ros,
-    name: '/compressed_image',
+    name: '/controller_parser/compressed_image',
     messageType: 'std_msgs/String'
 });
 
