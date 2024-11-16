@@ -17,20 +17,14 @@ def generate_launch_description():
         ),
         Node(
             package='moondawg',
-            executable='xbox_translator',
-            name='xbox_translator',
+            executable='controller_parser',
+            name='controller_parser',
             output='screen'
         ),
         Node(
             package='moondawg',
-            executable='serial_bridge',
-            name='serial_bridge',
-            output='screen'
-        ),
-        Node(
-            package='moondawg',
-            executable='diagnostics',
-            name='diagnostics',
+            executable='serial_node',
+            name='serial_node',
             output='screen'
         )
     ])

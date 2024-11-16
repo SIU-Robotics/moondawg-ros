@@ -23,9 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'xbox_translator = moondawg.xbox_translator:main',
-            'serial_bridge = moondawg.serial_bridge:main',
-            'diagnostics = moondawg.diagnostics:main',
+            'controller_parser = moondawg.controller_parser:main',
+            'serial_node = moondawg.serial_node:main'
         ],
     },
 )

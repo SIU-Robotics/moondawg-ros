@@ -12,7 +12,6 @@ import base64
 import datetime
 from .string_gen import StringGen
 
-hardware_id = 0
 belt_reverse_speed = 30
 forward = 'f'
 backward = 'b'
@@ -22,7 +21,7 @@ up = 'u'
 down = 'd'
 
 # handle the controller data and send a parsable string to the serial node
-class XboxTranslator(Node):
+class ControllerParser(Node):
 
     def init_vars(self):
         self.belt_speeds = [180, 125, 120]
@@ -60,36 +59,37 @@ class XboxTranslator(Node):
 
 
     def __init__(self):
-        super().__init__(node_name='xbox_translator')
+        super().__init__(node_name='controller_parser')
 
         self.init_vars()
         self.declare_parameters(
             namespace='',
             parameters=[
                 ('belt_speed_index', 0),
-                ('wheel_full_speed', 130),
-                ('wheel_full_stopped', 90),
             ])
         
         self.br = CvBridge()
-        self.diag = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK, hardware_id=str(hardware_id))
+        self.diagnostic_status = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK)
 
         # create subscriptions, publishers, and timers
-        self.diag_topic = self.create_publisher(DiagnosticStatus, 'xbox_translator_diag', 10)
-        self.connection_topic = self.create_subscription(Byte, 'connection_status', self.connection_callback, 10)
-        self.axis_subscription = self.create_subscription(Int8MultiArray, 'gamepad_axis', self.axis_callback, 10)
-        self.button_subscription = self.create_subscription(Int8MultiArray, 'gamepad_button', self.button_callback, 10)
-        self.serial_publisher = self.create_publisher(String, 'serial_topic', 10)
+        self.diag_topic = self.create_publisher(DiagnosticStatus, '/controller_parser/diag', 10)
+        self.connection_topic = self.create_subscription(Byte, '/connection_status', self.connection_callback, 10)
+        self.axis_subscription = self.create_subscription(Int8MultiArray, '/controller_parser/gamepad_axis', self.axis_callback, 10)
+        self.button_subscription = self.create_subscription(Int8MultiArray, '/controller_parser/gamepad_button', self.button_callback, 10)
+        self.serial_publisher = self.create_publisher(String, '/serial_node/serial', 10)
         self.heartbeat_timer = self.create_timer(1, self.heartbeat)
         self.auto_timer = self.create_timer(0.5, self.auto_callback)
         self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
-        self.image_pub = self.create_publisher(String, 'compressed_image', 10)
+        self.image_pub = self.create_publisher(String, '/controller_parser/compressed_image', 10)
+
+        self.diag(DiagnosticStatus.OK, "Controller parser ready.")
 
     # subroutine to dig without input
     def auto_callback(self):
         if (self.digging):
             if (self.time_start == 0):
                 self.time_start = datetime.datetime.now()
+                self.diag(DiagnosticStatus.OK, "Running dig autonomy subroutine.")
             diff = ceil((datetime.datetime.now() - self.time_start).total_seconds())
             if (diff < 3):
                 self.serial_publisher.publish(StringGen.belt_position_string(1, left))
@@ -100,7 +100,7 @@ class XboxTranslator(Node):
             elif (diff >= 30):
                 self.digging = False
         elif (not self.digging and self.time_start != 0):
-            self.get_logger().info("stopping now!!")
+            self.diag(DiagnosticStatus.OK, "Dig autonomy subroutine finished.")
             self.time_start = 0
             self.serial_publisher.publish(StringGen.belt_string(0))
             self.serial_publisher.publish(StringGen.belt_position_string(1, right))
@@ -154,9 +154,7 @@ class XboxTranslator(Node):
             self.camera_stick_handler(axis)
 
         except Exception as e:
-            self.diag.level = DiagnosticStatus.ERROR
-            self.diag.message = "Exception in gamepad axis callback."
-            self.get_logger().error("Exception in gamepad axis callback:" + str(e))
+            self.diag(DiagnosticStatus.ERROR, f"Exception in gamepad axis callback: {str(e)}")
 
     def movement_stick_handler(self, axis):
         left_speed, right_speed = self.calculate_speed(axis['lstick_x'], axis['lstick_y'])
@@ -190,8 +188,8 @@ class XboxTranslator(Node):
             self.serial_publisher.publish(StringGen.camera_pitch_string(round(self.camera_pitch)))
     
     def calculate_speed(self, x_axis, y_axis):
-        full_forward = self.get_parameter('xbox_translator/wheel_full_speed').value
-        stopped = self.get_parameter('xbox_translator/wheel_full_stopped').value
+        full_forward = 130
+        stopped = 90
         full_reverse = stopped - (full_forward - stopped)
 
         if abs(x_axis) < 15 and abs(y_axis) < 15:
@@ -328,9 +326,7 @@ class XboxTranslator(Node):
             self.misc_button_handler(buttons)
 
         except Exception as e:
-            self.diag.level = DiagnosticStatus.WARN
-            self.diag.message = "Exception in gamepad button callback."
-            self.get_logger().error("Exception in gamepad button callback:" + str(e))
+            self.diag(DiagnosticStatus.ERROR, f"Exception in gamepad button callback: {str(e)}")
 
     # called when everything must stop!
     def stop_all(self):
@@ -340,30 +336,28 @@ class XboxTranslator(Node):
         self.serial_publisher.publish(StringGen.deposit_string(0, forward))
         self.serial_publisher.publish(StringGen.vibrator_string(0))
 
+    def diag(self, status, message):
+        self.get_logger().error(message)
+        self.diagnostic_status.level = status
+        self.diagnostic_status.message = message
+
     # called on an interval to publish info about the node
     def heartbeat(self):
-        self.diag_topic.publish(self.diag)
+        self.diag_topic.publish(self.diagnostic_status)
         if (self.connected == 1 and (datetime.datetime.now() - self.connection_time).total_seconds() > 2):
             self.connected = 0
-            self.diag.level = DiagnosticStatus.ERROR
-            self.diag.message = "Connection to gamepad lost."
-            self.get_logger().info("**\n**\n**\nConnection lost!!!!\n**\n**\n**")
+            self.diag(DiagnosticStatus.ERROR, "Connection to gamepad lost.")
             self.stop_all()
 
 # start node
 def main(args=None):
     rclpy.init(args=args)
 
-    xbox_translator = XboxTranslator()
+    controller_parser = ControllerParser()
 
-    try:
-        rclpy.spin(xbox_translator)
-    except KeyboardInterrupt:
-        xbox_translator.get_logger().warning('Ctrl-C pressed, shutting down...')
-    finally:
-        xbox_translator.stop_all()
-        rclpy.shutdown()
-        exit(130)
+    rclpy.spin(controller_parser)
+    controller_parser.stop_all()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
