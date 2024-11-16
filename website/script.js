@@ -50,6 +50,16 @@ var imageTopic = new ROSLIB.Topic({
     name: '/controller_parser/compressed_image',
     messageType: 'std_msgs/String'
 });
+var controllerDiagTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/controller_parser/controller_diag',
+    messageType: 'std_msgs/String'
+});
+var serialDiagnosticTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: '/serial_node/diag',
+    messageType: 'std_msgs/String'
+});
 
 // Subscribe to topics
 imageTopic.subscribe(function(message) {
@@ -60,6 +70,12 @@ axisTopic.subscribe(function(message) {
 });
 buttonTopic.subscribe(function(message) {
     document.getElementById('button-display').innerHTML = message.data;
+});
+controllerDiagTopic.subscribe(function(message) {
+    document.getElementById('controller_diag').innerHTML = message.data;
+});
+serialDiagnosticTopic.subscribe(function(message) {
+    document.getElementById('serial_diag').innerHTML = message.data;
 });
 
 // Connect gamepad
