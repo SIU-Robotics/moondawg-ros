@@ -17,7 +17,8 @@ WorkingDirectory=/home/nasa/
 Restart=on-failure
 
 [Install]
-WantedBy=multi-user.target""" > /etc/systemd/system/moondawg.service
+WantedBy=multi-user.target""" > ./moondawg.service
+sudo mv ./moondawg.service /etc/systemd/system/moondawg.service
 sudo systemctl daemon-reload
 sudo systemctl enable moondawg.service
 sudo systemctl start moondawg.service
