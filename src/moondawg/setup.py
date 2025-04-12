@@ -24,7 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'controller_parser = moondawg.controller_parser:main',
-            'serial_node = moondawg.serial_node:main'
+            'i2c_node = moondawg.i2c_node:main'
         ],
     },
 )

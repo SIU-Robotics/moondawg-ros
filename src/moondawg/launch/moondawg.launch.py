@@ -23,8 +23,8 @@ def generate_launch_description():
         ),
         Node(
             package='moondawg',
-            executable='serial_node',
-            name='serial_node',
+            executable='i2c_node',
+            name='i2c_node',
             output='screen'
         )
     ])
