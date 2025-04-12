@@ -20,9 +20,9 @@ class I2CNode(Node):
         self.diag(DiagnosticStatus.OK, f"I2C bus {self.bus_id} open.")
 
     def command_callback(self, msg):
-        parts = msg.data.split(' ', 1)
+        parts = msg.data.split(':', 1)
         if len(parts) < 2:
-            self.diag(DiagnosticStatus.WARN, "Invalid command format.")
+            self.diag(DiagnosticStatus.WARN, f"Invalid command format: {msg} should be <address>:<data>.")
             return
         addr, data_str = parts[0], parts[1]
         try:
