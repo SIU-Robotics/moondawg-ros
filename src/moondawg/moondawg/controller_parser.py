@@ -18,16 +18,13 @@ right = 'r'
 up = 'u'
 down = 'd'
 
-# Addresses for each wheel controller (example)
 FRONT_LEFT_ADDR  = 0x10
 FRONT_RIGHT_ADDR = 0x11
 REAR_LEFT_ADDR   = 0x12
 REAR_RIGHT_ADDR  = 0x13
-
-# Addresses for belt and auger
+STEERING_SERVO_ADDR = 0x14
 BELT_ADDR  = 0x20
 AUGER_ADDR = 0x21
-# (Adjust these to whatever addresses your hardware expects)
 
 def clamp(value, low, high):
     return max(low, min(value, high))
@@ -117,17 +114,17 @@ class ControllerParser(Node):
             if diff < 3:
                 # Move belt position left
                 cmd = StringGen.belt_position_string(1, left)
-                self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+                self.send_i2c(BELT_ADDR, cmd)
 
             elif 3 <= diff < 5:
                 # Turn belt on
                 cmd = StringGen.belt_string(1)
-                self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+                self.send_i2c(BELT_ADDR, cmd)
 
             elif 17 <= diff < 19:
                 # Move belt position right
                 cmd = StringGen.belt_position_string(0, right)
-                self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+                self.send_i2c(BELT_ADDR, cmd)
 
             elif diff >= 30:
                 self.digging = False
@@ -137,10 +134,10 @@ class ControllerParser(Node):
             self.time_start = 0
             # Stop belt
             cmd_stop = StringGen.belt_string(0)
-            self.send_i2c(BELT_ADDR, list(cmd_stop.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd_stop)
             # Move belt position right (reset)
             cmd_pos = StringGen.belt_position_string(1, right)
-            self.send_i2c(BELT_ADDR, list(cmd_pos.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd_pos)
 
     # -------------------------------------------------------------------------
     # Called by website, tracks last time connected
@@ -285,10 +282,11 @@ class ControllerParser(Node):
                 motor_rr = speed
 
         # Send I2C commands to each wheel
-        self.send_i2c(FRONT_LEFT_ADDR,  [int(servo_fl), int(motor_fl)])
-        self.send_i2c(FRONT_RIGHT_ADDR, [int(servo_fr), int(motor_fr)])
-        self.send_i2c(REAR_LEFT_ADDR,   [int(servo_rl), int(motor_rl)])
-        self.send_i2c(REAR_RIGHT_ADDR,  [int(servo_rr), int(motor_rr)])
+        self.send_i2c(FRONT_LEFT_ADDR,  int(motor_fl))
+        self.send_i2c(FRONT_RIGHT_ADDR, int(motor_fr))
+        self.send_i2c(REAR_LEFT_ADDR,   int(motor_rl))
+        self.send_i2c(REAR_RIGHT_ADDR,  int(motor_rr))
+        self.send_i2c(STEERING_SERVO_ADDR, [int(servo_fl), int(servo_fr), int(servo_rl), int(servo_rr)])
 
 
     # -------------------------------------------------------------------------
@@ -331,25 +329,25 @@ class ControllerParser(Node):
         if buttons["button_b"] != self.button_b:
             self.button_b = buttons["button_b"]
             cmd = StringGen.belt_string(buttons["button_b"], belt_reverse_speed)
-            self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd)
 
         # D-pad up => belt position right
         if buttons["dpad_up"] != self.dpad_up:
             cmd = StringGen.belt_position_string(buttons["dpad_up"], right)
-            self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd)
             self.dpad_up = buttons["dpad_up"]
         
         # D-pad down => belt position left
         if buttons["dpad_down"] != self.dpad_down:
             cmd = StringGen.belt_position_string(buttons["dpad_down"], left)
-            self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd)
             self.dpad_down = buttons["dpad_down"]
 
         # Left bumper => belt forward (with current speed index)
         if buttons["lbutton"] != self.lbutton:
             speed = self.belt_speeds[self.belt_speed_index]
             cmd = StringGen.belt_string(buttons["lbutton"], speed)
-            self.send_i2c(BELT_ADDR, list(cmd.encode('ascii')))
+            self.send_i2c(BELT_ADDR, cmd)
             self.lbutton = buttons["lbutton"]
 
     # -------------------------------------------------------------------------
@@ -371,7 +369,7 @@ class ControllerParser(Node):
         if buttons['rtrigger'] != self.rtrigger:
             self.rtrigger = buttons['rtrigger']
             if self.rtrigger:
-                lspeed, rspeed = self.calculate_speed(0, -(self.rtrigger*0.8)-15)
+                lspeed, rspeed = self.calculate_speed(0, -(self.rtrigger*0.8)+15)
                 # Instead of old serial:
                 #   self.serial_publisher.publish(StringGen.movement_string(lspeed, rspeed))
                 # we can do direct I2C to all 4 wheels:
@@ -403,7 +401,7 @@ class ControllerParser(Node):
         if buttons["button_x"] != self.button_x:
             cmd = StringGen.deposit_string(buttons["button_x"], forward)
             # Send to the auger address
-            self.send_i2c(AUGER_ADDR, list(cmd.encode('ascii')))
+            self.send_i2c(AUGER_ADDR, cmd)
             self.button_x = buttons["button_x"]
 
         # If you previously used dpad_left/dpad_right to move camera arm,
@@ -450,19 +448,19 @@ class ControllerParser(Node):
 
         # Stop belt
         belt_stop = StringGen.belt_string(0, 90)
-        self.send_i2c(BELT_ADDR, list(belt_stop.encode('ascii')))
+        self.send_i2c(BELT_ADDR, belt_stop)
 
         # Reset belt position
         belt_pos = StringGen.belt_position_string(0, right)
-        self.send_i2c(BELT_ADDR, list(belt_pos.encode('ascii')))
+        self.send_i2c(BELT_ADDR, belt_pos)
 
         # Stop deposit/auger
         deposit_stop = StringGen.deposit_string(0, forward)
-        self.send_i2c(AUGER_ADDR, list(deposit_stop.encode('ascii')))
+        self.send_i2c(AUGER_ADDR, deposit_stop)
 
         # Comment out vibrator:
         # vib_stop = StringGen.vibrator_string(0)
-        # self.send_i2c(SOME_VIB_ADDR, list(vib_stop.encode('ascii')))
+        # self.send_i2c(SOME_VIB_ADDR, vib_stop)
 
     def diag(self, status, message):
         # For quick debugging in console, using error-level logs
@@ -502,18 +500,8 @@ class ControllerParser(Node):
     # -------------------------------------------------------------------------
     # The new I2C-sending function
     # -------------------------------------------------------------------------
-    def send_i2c(self, address, data_bytes):
-        """
-        Sends `data_bytes` (list of integers) to `address` via I²C.
-        We'll just encode them into a string for the /i2c_node/command topic.
-
-        Example final string: "0x10:90,90"
-        or for belt: "0x20:66,49,56,48" if the string was "B180" in ASCII bytes.
-
-        Adjust the format as your I2C node expects.
-        """
+    def send_i2c(self, address, data_str):
         # You can change the output format as needed. This example:
-        data_str = ",".join(str(b) for b in data_bytes)
         msg_str = f"{hex(address)}:{data_str}"
         self.i2c_publisher.publish(String(data=msg_str))
 
