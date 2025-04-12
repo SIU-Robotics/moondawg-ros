@@ -1,7 +1,7 @@
 touch ~/run_moondawg.sh
 echo """#!/bin/bash
 
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 source /home/nasa/moondawg-ros/install/setup.bash
 ros2 launch moondawg moondawg.launch.py""" > ~/run_moondawg.sh
 sudo chmod +x ~/run_moondawg.sh
