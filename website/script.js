@@ -1,5 +1,5 @@
 // Parameters - change these to match the Pi
-var ip = "131.230.197.82"; // IP of the Pi
+var ip = "131.230.197.84"; // IP of the Pi
 var port = "9090"; // Port of webserver node
 
 var gamepad_axis_prev = "null";
@@ -53,12 +53,12 @@ var imageTopic = new ROSLIB.Topic({
 var controllerDiagTopic = new ROSLIB.Topic({
     ros: ros,
     name: '/controller_parser/controller_diag',
-    messageType: 'std_msgs/String'
+    messageType: 'diagnostic_msgs/DiagnosticStatus'
 });
-var serialDiagnosticTopic = new ROSLIB.Topic({
+var i2cDiagTopic = new ROSLIB.Topic({
     ros: ros,
-    name: '/serial_node/diag',
-    messageType: 'std_msgs/String'
+    name: '/i2c_node/diag',
+    messageType: 'diagnostic_msgs/DiagnosticStatus'
 });
 
 // Parameters
@@ -77,10 +77,10 @@ buttonTopic.subscribe(function(message) {
     document.getElementById('button-display').innerHTML = message.data;
 });
 controllerDiagTopic.subscribe(function(message) {
-    document.getElementById('controller_diag').innerHTML = message.data;
+    document.getElementById('controller_diag').innerHTML = message.message;
 });
-serialDiagnosticTopic.subscribe(function(message) {
-    document.getElementById('serial_diag').innerHTML = message.data;
+i2cDiagTopic.subscribe(function(message) {
+    document.getElementById('i2c_diag').innerHTML = message.message;
 });
 
 // Connect gamepad
