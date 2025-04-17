@@ -189,105 +189,125 @@ class ControllerParser(Node):
         """
         Given x, y from left stick in [-100..100],
         compute servo angle + motor speed for each of the 4 wheels.
-        Then call send_i2c(...) to send [servo_angle, motor_speed].
+        
+        Modes:
+        - Crab mode (1): All wheels point in the same direction for translation with no rotation
+        - Zero-point turn mode (0): Wheels positioned to enable rotation around the center
+        
+        Each servo gets a separate position command (0-180) and each motor gets a speed (0-180)
+        90 = forward/stopped, 0 = left/reverse, 180 = right/forward
         """
-
+        # Normalize inputs to [-1.0, 1.0]
         x_f = x / 100.0
         y_f = y / 100.0
-
-        if self.driving_mode == 0:
+        
+        # Calculate magnitude of joystick movement (0.0 to 1.0)
+        magnitude = hypot(x_f, y_f)
+        
+        # Ignore very small movements
+        if magnitude < 0.1:
+            # Stop all motors and center all wheels
+            for addr in [FRONT_LEFT_ADDR, FRONT_RIGHT_ADDR, REAR_LEFT_ADDR, REAR_RIGHT_ADDR]:
+                self.send_i2c(addr, 90)  # Stop motor
+            
+            for channel in range(1, 5):
+                self.send_i2c(STEERING_SERVO_ADDR, (90, channel))  # Center servo
+            return
+            
+        if self.driving_mode == 1:
             # -----------------
-            # Rotate mode
+            # Crab mode - all wheels point in same direction, no rotation
             # -----------------
-            if abs(x_f) > abs(y_f):
-                # rotating in place
-                if x_f > 0:
-                    fl_angle = 45
-                    fr_angle = 135
-                    rl_angle = 135
-                    rr_angle = 45
-                else:
-                    fl_angle = 135
-                    fr_angle = 45
-                    rl_angle = 45
-                    rr_angle = 135
-            else:
-                # forward/back
-                fl_angle = 90
-                fr_angle = 90
-                rl_angle = 90
-                rr_angle = 90
-
-            servo_fl = clamp(fl_angle, 0, 180)
-            servo_fr = clamp(fr_angle, 0, 180)
-            servo_rl = clamp(rl_angle, 0, 180)
-            servo_rr = clamp(rr_angle, 0, 180)
-
-            # Motor speed
-            speed_magnitude = hypot(x_f, y_f)
-            speed = 90 + (speed_magnitude * 90)
+            
+            # Calculate angle from joystick position (in degrees)
+            # atan2(y, x) gives angle from positive x-axis, but we need from positive y-axis
+            # so we use atan2(x, y) instead and adjust
+            angle_radians = atan2(x_f, y_f)
+            servo_angle = 90 + degrees(angle_radians)  # Convert to 0-180 range
+            servo_angle = clamp(int(servo_angle), 0, 180)
+            
+            # Set all servos to the same angle
+            for channel in range(1, 5):
+                self.send_i2c(STEERING_SERVO_ADDR, (servo_angle, channel))
+            
+            # Calculate speed based on magnitude (90 = stopped, 180 = full forward, 0 = full reverse)
+            # Sign based on direction relative to forward
+            speed = 90 + int(90 * magnitude * (1 if y_f >= 0 else -1))
             speed = clamp(speed, 0, 180)
-
-            if abs(x_f) > abs(y_f):
-                if x_f > 0:
-                    motor_fl = speed
-                    motor_fr = speed
-                    motor_rl = 180 - speed
-                    motor_rr = 180 - speed
-                else:
-                    motor_fl = 180 - speed
-                    motor_fr = 180 - speed
-                    motor_rl = speed
-                    motor_rr = speed
-            else:
-                if y_f > 0:
-                    motor_fl = speed
-                    motor_fr = speed
-                    motor_rl = speed
-                    motor_rr = speed
-                else:
-                    rev = 180 - speed
-                    motor_fl = rev
-                    motor_fr = rev
-                    motor_rl = rev
-                    motor_rr = rev
-
+            
+            # Apply the same speed to all motors
+            self.send_i2c(FRONT_LEFT_ADDR, speed)
+            self.send_i2c(FRONT_RIGHT_ADDR, speed)
+            self.send_i2c(REAR_LEFT_ADDR, speed)
+            self.send_i2c(REAR_RIGHT_ADDR, speed)
+            
         else:
             # -----------------
-            # Crab mode
+            # Zero-point turn mode - wheels positioned to maximize rotation
             # -----------------
-            angle_radians = atan2(x_f, y_f)
-            servo_angle = 90 + degrees(angle_radians)
-            servo_angle = clamp(servo_angle, 0, 180)
-
-            servo_fl = servo_angle
-            servo_fr = servo_angle
-            servo_rl = servo_angle
-            servo_rr = servo_angle
-
-            speed_magnitude = hypot(x_f, y_f)
-            speed = 90 + (speed_magnitude * 90)
-            speed = clamp(speed, 0, 180)
-
-            if y_f < 0:
-                rev = 180 - speed
-                motor_fl = rev
-                motor_fr = rev
-                motor_rl = rev
-                motor_rr = rev
+            
+            # For small Y movement but larger X movement, do a zero-point turn
+            if abs(x_f) > abs(y_f) and abs(x_f) > 0.3:
+                # For rotation, front wheels point one way, rear wheels the opposite
+                if x_f > 0:  # Clockwise rotation
+                    # Front wheels right, rear wheels left
+                    self.send_i2c(STEERING_SERVO_ADDR, (135, 1))  # Front left -> right
+                    self.send_i2c(STEERING_SERVO_ADDR, (135, 2))  # Front right -> right  
+                    self.send_i2c(STEERING_SERVO_ADDR, (45, 3))   # Rear left -> left
+                    self.send_i2c(STEERING_SERVO_ADDR, (45, 4))   # Rear right -> left
+                    
+                    # Set speeds for rotation - front wheels forward, rear wheels reverse
+                    speed = 90 + int(90 * abs(x_f))
+                    rev_speed = 90 - int(90 * abs(x_f))
+                    speed = clamp(speed, 0, 180)
+                    rev_speed = clamp(rev_speed, 0, 180)
+                    
+                    self.send_i2c(FRONT_LEFT_ADDR, speed)
+                    self.send_i2c(FRONT_RIGHT_ADDR, speed)
+                    self.send_i2c(REAR_LEFT_ADDR, rev_speed)
+                    self.send_i2c(REAR_RIGHT_ADDR, rev_speed)
+                    
+                else:  # Counter-clockwise rotation
+                    # Front wheels left, rear wheels right
+                    self.send_i2c(STEERING_SERVO_ADDR, (45, 1))   # Front left -> left
+                    self.send_i2c(STEERING_SERVO_ADDR, (45, 2))   # Front right -> left
+                    self.send_i2c(STEERING_SERVO_ADDR, (135, 3))  # Rear left -> right
+                    self.send_i2c(STEERING_SERVO_ADDR, (135, 4))  # Rear right -> right
+                    
+                    # Set speeds for rotation - front wheels reverse, rear wheels forward
+                    speed = 90 + int(90 * abs(x_f))
+                    rev_speed = 90 - int(90 * abs(x_f))
+                    speed = clamp(speed, 0, 180)
+                    rev_speed = clamp(rev_speed, 0, 180)
+                    
+                    self.send_i2c(FRONT_LEFT_ADDR, rev_speed)
+                    self.send_i2c(FRONT_RIGHT_ADDR, rev_speed)
+                    self.send_i2c(REAR_LEFT_ADDR, speed)
+                    self.send_i2c(REAR_RIGHT_ADDR, speed)
             else:
-                motor_fl = speed
-                motor_fr = speed
-                motor_rl = speed
-                motor_rr = speed
-
-        # Send I2C commands to each wheel
-        self.send_i2c(FRONT_LEFT_ADDR,  int(motor_fl))
-        self.send_i2c(FRONT_RIGHT_ADDR, int(motor_fr))
-        self.send_i2c(REAR_LEFT_ADDR,   int(motor_rl))
-        self.send_i2c(REAR_RIGHT_ADDR,  int(motor_rr))
-        self.send_i2c(STEERING_SERVO_ADDR, [int(servo_fl), int(servo_fr), int(servo_rl), int(servo_rr)])
-
+                # For forward/backward movement with some turning
+                # First, set all wheels pointing forward
+                for channel in range(1, 5):
+                    self.send_i2c(STEERING_SERVO_ADDR, (90, channel))
+                
+                # Calculate speed based on y_axis (positive = forward, negative = backward)
+                base_speed = 90 + int(90 * y_f)
+                base_speed = clamp(base_speed, 0, 180)
+                
+                # Apply differential steering for turning while moving
+                turn_factor = x_f * 0.5  # Reduce turning sensitivity
+                
+                left_speed = int(base_speed - (turn_factor * 90))
+                right_speed = int(base_speed + (turn_factor * 90))
+                
+                left_speed = clamp(left_speed, 0, 180)
+                right_speed = clamp(right_speed, 0, 180)
+                
+                # Apply speeds to the left and right sides
+                self.send_i2c(FRONT_LEFT_ADDR, left_speed)
+                self.send_i2c(REAR_LEFT_ADDR, left_speed)
+                self.send_i2c(FRONT_RIGHT_ADDR, right_speed)
+                self.send_i2c(REAR_RIGHT_ADDR, right_speed)
 
     # -------------------------------------------------------------------------
     # Axis callback => 4WS for left stick
@@ -500,9 +520,16 @@ class ControllerParser(Node):
     # -------------------------------------------------------------------------
     # The new I2C-sending function
     # -------------------------------------------------------------------------
-    def send_i2c(self, address, data_str):
-        # You can change the output format as needed. This example:
-        msg_str = f"{hex(address)}:{data_str}"
+    def send_i2c(self, address, data):
+        # data may be an int or a tuple/list
+        if isinstance(data, (tuple, list)) and len(data) == 2:
+            val, channel = data
+            msg_str = f"{hex(address)}:{val},{channel}"
+        elif isinstance(data, (tuple, list)):
+            # fallback: join all items
+            msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
+        else:
+            msg_str = f"{hex(address)}:{data}"
         self.i2c_publisher.publish(String(data=msg_str))
 
 
