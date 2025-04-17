@@ -1,61 +1,99 @@
 from math import ceil, atan2, degrees, hypot
 import rclpy
+from rclpy.node import Node
 from std_msgs.msg import Int8MultiArray, String, Byte
 from sensor_msgs.msg import Image
 from diagnostic_msgs.msg import DiagnosticStatus
-from rclpy.lifecycle import Node
 from cv_bridge import CvBridge
 import cv2
 import base64
 import datetime
+from typing import Tuple, Union, Dict, List, Any
 from .string_gen import StringGen
 
-belt_reverse_speed = 30
-forward = 'f'
-backward = 'b'
-left = 'l'
-right = 'r'
-up = 'u'
-down = 'd'
+# Constants for better readability and maintenance
+# Movement constants
+FORWARD = 'f'
+BACKWARD = 'b'
+LEFT = 'l'
+RIGHT = 'r'
+UP = 'u'
+DOWN = 'd'
 
-FRONT_LEFT_ADDR  = 0x10
-FRONT_RIGHT_ADDR = 0x11
-REAR_LEFT_ADDR   = 0x12
-REAR_RIGHT_ADDR  = 0x13
-STEERING_SERVO_ADDR = 0x14
-BELT_ADDR  = 0x20
-AUGER_ADDR = 0x21
+# Motor speed constants
+BELT_REVERSE_SPEED = 30
+MOTOR_STOPPED = 90
+MOTOR_FULL_FORWARD = 180
+MOTOR_FULL_REVERSE = 0
+CAMERA_CENTER = 90
 
-def clamp(value, low, high):
+# I2C addresses - consolidated into a single place for easy maintenance
+class I2CAddress:
+    FRONT_LEFT = 0x10
+    FRONT_RIGHT = 0x11
+    REAR_LEFT = 0x12
+    REAR_RIGHT = 0x13
+    STEERING_SERVO = 0x14
+    BELT = 0x20
+    AUGER = 0x21
+
+# Driving modes
+class DrivingMode:
+    ROTATE = 0
+    CRAB = 1
+
+def clamp(value: float, low: float, high: float) -> float:
+    """Constrain a value between a minimum and maximum value."""
     return max(low, min(value, high))
 
 
 class ControllerParser(Node):
+    """
+    Node that parses controller inputs and translates them to robot commands.
+    
+    This node handles:
+    - Xbox controller input processing
+    - Robot movement control through I2C commands
+    - Belt and auger operation
+    - Autonomous digging sequence control
+    - Camera feed compression and streaming
+    """
 
-    def init_vars(self):
+    def __init__(self):
+        super().__init__(node_name='controller_parser')
+        
+        # Initialize state variables
+        self._init_state_variables()
+        
+        # Declare ROS parameters
+        self._declare_parameters()
+        
+        # Set up publishers, subscribers, and timers
+        self._setup_communications()
+        
+        self.get_logger().info("Controller parser initialized and ready")
+
+    def _init_state_variables(self) -> None:
+        """Initialize all state variables for the node."""
+        # Component state
         self.belt_speeds = [180, 125, 120]
-        # self.camera_pitch = 90
-        # self.camera_angle = 0
-        # self.camera_arm = 0
         self.belt_speed_index = 0
+        self.driving_mode = DrivingMode.ROTATE
+        
+        # Connection state
         self.connection_time = 0
-        self.connected = 0
-
-        # autonomy states
+        self.connected = False
+        
+        # Autonomy state
         self.time_start = 0
         self.depositing = False
         self.digging = False
-
-        # driving mode (0 = “Rotate” mode, 1 = “Crab” mode)
-        self.driving_mode = 0
-
-        # button states
+        
+        # Controller button states - initialized to prevent None comparisons
         self.dpad_up = 0
         self.dpad_down = 0
         self.dpad_left = 0
         self.dpad_right = 0
-        self.left_speed = 0
-        self.right_speed = 0
         self.button_x = 0
         self.button_a = 0
         self.button_b = 0
@@ -68,93 +106,457 @@ class ControllerParser(Node):
         self.menu = 0
         self.lstickbutton = 0
         self.rstickbutton = 0
+        
+        # Bridge for camera processing
+        self.br = CvBridge()
+        
+        # Diagnostic status setup
+        self.diagnostic_status = DiagnosticStatus(
+            name=self.get_name(), 
+            level=DiagnosticStatus.OK,
+            message="Initializing controller parser"
+        )
 
-    def __init__(self):
-        super().__init__(node_name='controller_parser')
-        self.init_vars()
+    def _declare_parameters(self) -> None:
+        """Declare all ROS parameters for this node."""
+        self.declare_parameter('belt_speed_index', 0)
+        self.declare_parameter('joystick_deadzone', 0.1)
+        self.declare_parameter('turn_sensitivity', 0.5)
+        self.declare_parameter('image_compression_quality', 20)
 
-        self.declare_parameters(
-            namespace='',
-            parameters=[
-                ('belt_speed_index', 0),
-            ]
+    def _setup_communications(self) -> None:
+        """Set up all publishers, subscribers, and timers."""
+        # Publishers
+        self.diag_topic = self.create_publisher(
+            DiagnosticStatus, 
+            '/controller_parser/diag', 
+            10
+        )
+        self.i2c_publisher = self.create_publisher(
+            String, 
+            '/i2c_node/command', 
+            10
+        )
+        self.image_pub = self.create_publisher(
+            String, 
+            '/controller_parser/compressed_image', 
+            10
         )
         
-        self.br = CvBridge()
-        self.diagnostic_status = DiagnosticStatus(name=self.get_name(), level=DiagnosticStatus.OK)
-
-        # Publishers / Subscribers / Timers
-        self.diag_topic = self.create_publisher(DiagnosticStatus, '/controller_parser/diag', 10)
-        self.connection_topic = self.create_subscription(Byte, '/connection_status', self.connection_callback, 10)
-        self.axis_subscription = self.create_subscription(Int8MultiArray, '/controller_parser/gamepad_axis', self.axis_callback, 10)
-        self.button_subscription = self.create_subscription(Int8MultiArray, '/controller_parser/gamepad_button', self.button_callback, 10)
-
-        # We won’t use serial_publisher anymore:
-        # self.serial_publisher = self.create_publisher(String, '/serial_node/serial', 10)
-
-        self.i2c_publisher = self.create_publisher(String, '/i2c_node/command', 10)
-
-        self.heartbeat_timer = self.create_timer(1, self.heartbeat)
+        # Subscribers
+        self.connection_topic = self.create_subscription(
+            Byte, 
+            '/connection_status', 
+            self.connection_callback, 
+            10
+        )
+        self.axis_subscription = self.create_subscription(
+            Int8MultiArray, 
+            '/controller_parser/gamepad_axis', 
+            self.axis_callback, 
+            10
+        )
+        self.button_subscription = self.create_subscription(
+            Int8MultiArray, 
+            '/controller_parser/gamepad_button', 
+            self.button_callback, 
+            10
+        )
+        self.image_subscription = self.create_subscription(
+            Image, 
+            'image', 
+            self.image_translator, 
+            10
+        )
+        
+        # Timers
+        self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
         self.auto_timer = self.create_timer(0.5, self.auto_callback)
+        
+        # Set initial diagnostic status
+        self.set_diagnostic_status(DiagnosticStatus.OK, "Controller parser ready")
 
-        self.image_subscription = self.create_subscription(Image, 'image', self.image_translator, 10)
-        self.image_pub = self.create_publisher(String, '/controller_parser/compressed_image', 10)
+    # ------------------- Callback handlers -------------------
 
-        self.diag(DiagnosticStatus.OK, "Controller parser ready.")
-
-    # -------------------------------------------------------------------------
-    # Subroutine to dig without input (autonomy)
-    # -------------------------------------------------------------------------
-    def auto_callback(self):
-        if self.digging:
-            if self.time_start == 0:
-                self.time_start = datetime.datetime.now()
-                self.diag(DiagnosticStatus.OK, "Running dig autonomy subroutine.")
-            diff = ceil((datetime.datetime.now() - self.time_start).total_seconds())
-            if diff < 3:
-                # Move belt position left
-                cmd = StringGen.belt_position_string(1, left)
-                self.send_i2c(BELT_ADDR, cmd)
-
-            elif 3 <= diff < 5:
-                # Turn belt on
-                cmd = StringGen.belt_string(1)
-                self.send_i2c(BELT_ADDR, cmd)
-
-            elif 17 <= diff < 19:
-                # Move belt position right
-                cmd = StringGen.belt_position_string(0, right)
-                self.send_i2c(BELT_ADDR, cmd)
-
-            elif diff >= 30:
-                self.digging = False
-
-        elif not self.digging and self.time_start != 0:
-            self.diag(DiagnosticStatus.OK, "Dig autonomy subroutine finished.")
-            self.time_start = 0
-            # Stop belt
-            cmd_stop = StringGen.belt_string(0)
-            self.send_i2c(BELT_ADDR, cmd_stop)
-            # Move belt position right (reset)
-            cmd_pos = StringGen.belt_position_string(1, right)
-            self.send_i2c(BELT_ADDR, cmd_pos)
-
-    # -------------------------------------------------------------------------
-    # Called by website, tracks last time connected
-    # -------------------------------------------------------------------------
-    def connection_callback(self, message):
+    def connection_callback(self, message: Byte) -> None:
+        """Handle connection status messages from the websocket."""
         self.connection_time = datetime.datetime.now()
-        self.connected = 1
+        self.connected = True
+        
+    def axis_callback(self, request: Int8MultiArray) -> None:
+        """Process joystick axis data from the controller."""
+        try:
+            axis = self._parse_axis(request.data)
+            self.four_wheel_steering_handler(axis['lstick_x'], axis['lstick_y'])
+        except Exception as e:
+            self.set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                f"Exception in gamepad axis callback: {str(e)}"
+            )
 
-    # -------------------------------------------------------------------------
-    # Convert camera image to compressed base64 (unchanged)
-    # -------------------------------------------------------------------------
-    def image_translator(self, message):
-        cv_image = self.br.imgmsg_to_cv2(message)
-        _, encoded_img = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, 20])
-        self.image_pub.publish(String(data=base64.b64encode(encoded_img.tobytes()).decode('utf-8')))
+    def button_callback(self, request: Int8MultiArray) -> None:
+        """Process button data from the controller."""
+        try:
+            buttons = self._parse_buttons(request.data)
+            
+            # Check if we should toggle autonomous mode
+            self._check_auto_toggle(buttons)
+            
+            # If in autonomous mode, don't process manual controls
+            if self.digging:
+                return
+            
+            # Process manual control inputs
+            self._process_belt_controls(buttons)
+            self._process_movement_controls(buttons)
+            self._process_misc_controls(buttons)
+            
+        except Exception as e:
+            self.set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                f"Exception in gamepad button callback: {str(e)}"
+            )
 
-    def parse_axis(self, data):
+    def auto_callback(self) -> None:
+        """
+        Manage the autonomous digging sequence.
+        
+        This function is called on a timer and manages the state machine
+        for the autonomous digging sequence.
+        """
+        if not self.digging:
+            if self.time_start != 0:
+                # Cleanup when ending autonomous mode
+                self.set_diagnostic_status(
+                    DiagnosticStatus.OK, 
+                    "Dig autonomy subroutine finished"
+                )
+                self.time_start = 0
+                # Stop belt
+                self._stop_belt()
+                # Reset belt position
+                self._move_belt_position(True, RIGHT)
+            return
+            
+        # Initialize the timer if this is the start of the sequence
+        if self.time_start == 0:
+            self.time_start = datetime.datetime.now()
+            self.set_diagnostic_status(
+                DiagnosticStatus.OK, 
+                "Running dig autonomy subroutine"
+            )
+            
+        # Calculate elapsed time and run the appropriate sequence step
+        elapsed_seconds = ceil((datetime.datetime.now() - self.time_start).total_seconds())
+        
+        if elapsed_seconds < 3:
+            # Phase 1: Lower belt
+            self._move_belt_position(True, LEFT)
+        elif 3 <= elapsed_seconds < 5:
+            # Phase 2: Start belt
+            self._start_belt()
+        elif 17 <= elapsed_seconds < 19:
+            # Phase 3: Raise belt
+            self._move_belt_position(True, RIGHT)
+        elif elapsed_seconds >= 30:
+            # Phase 4: Complete sequence
+            self.digging = False
+
+    def image_translator(self, message: Image) -> None:
+        """
+        Convert ROS Image messages to compressed base64 strings for web transmission.
+        
+        Args:
+            message: The Image message from the camera
+        """
+        try:
+            # Convert ROS Image to OpenCV image
+            cv_image = self.br.imgmsg_to_cv2(message)
+            
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            self.image_pub.publish(String(data=base64_data))
+        except Exception as e:
+            self.get_logger().error(f"Error processing camera image: {str(e)}")
+
+    def heartbeat(self) -> None:
+        """
+        Publish diagnostic status and check for controller connection timeout.
+        
+        This function is called periodically to:
+        1. Publish the current diagnostic status
+        2. Check if the controller connection has timed out
+        3. Stop all motors if connection is lost
+        """
+        # Publish diagnostics
+        self.diag_topic.publish(self.diagnostic_status)
+        
+        # Check for connection timeout (2 seconds)
+        if self.connected and (datetime.datetime.now() - self.connection_time).total_seconds() > 2:
+            self.connected = False
+            self.set_diagnostic_status(
+                DiagnosticStatus.ERROR,
+                "Connection to gamepad lost"
+            )
+            self.stop_all()
+
+    # ------------------- Control handlers -------------------
+
+    def four_wheel_steering_handler(self, x: float, y: float) -> None:
+        """
+        Handle four wheel steering based on joystick input.
+        
+        Args:
+            x: X-axis joystick value (-100 to 100)
+            y: Y-axis joystick value (-100 to 100)
+        """
+        # Normalize inputs to [-1.0, 1.0]
+        x_f = x / 100.0
+        y_f = y / 100.0
+        
+        # Calculate magnitude of joystick movement (0.0 to 1.0)
+        magnitude = hypot(x_f, y_f)
+        deadzone = self.get_parameter('joystick_deadzone').get_parameter_value().double_value
+        
+        # Ignore very small movements (deadzone)
+        if magnitude < deadzone:
+            self._center_wheels()
+            self._stop_motors()
+            return
+            
+        if self.driving_mode == DrivingMode.CRAB:
+            self._handle_crab_mode(x_f, y_f, magnitude)
+        else:
+            self._handle_rotate_mode(x_f, y_f, magnitude)
+
+    def _handle_crab_mode(self, x_f: float, y_f: float, magnitude: float) -> None:
+        """
+        Handle crab steering mode (all wheels point in same direction).
+        
+        Args:
+            x_f: Normalized X-axis (-1.0 to 1.0)
+            y_f: Normalized Y-axis (-1.0 to 1.0)
+            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
+        """
+        # Calculate angle from joystick position (in degrees)
+        angle_radians = atan2(x_f, y_f)
+        servo_angle = 90 + degrees(angle_radians)  # Convert to 0-180 range
+        servo_angle = clamp(int(servo_angle), 0, 180)
+        
+        # Set all servos to the same angle
+        for channel in range(1, 5):
+            self._set_steering_angle(servo_angle, channel)
+        
+        # Calculate speed based on magnitude 
+        # (90 = stopped, 180 = full forward, 0 = full reverse)
+        speed = 90 - int(90 * magnitude * (-1 if y_f >= 0 else 1))
+        speed = clamp(speed, 0, 180)
+        
+        # Apply the same speed to all motors
+        self._set_wheel_speeds(speed, speed, speed, speed)
+
+    def _handle_rotate_mode(self, x_f: float, y_f: float, magnitude: float) -> None:
+        """
+        Handle rotation steering mode.
+        
+        Args:
+            x_f: Normalized X-axis (-1.0 to 1.0)
+            y_f: Normalized Y-axis (-1.0 to 1.0)
+            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
+        """
+        # For small Y movement but larger X movement, do a zero-point turn
+        if abs(x_f) > abs(y_f) and abs(x_f) > 0.3:
+            self._handle_point_turn(x_f)
+        else:
+            self._handle_differential_steering(x_f, y_f, magnitude)
+
+    def _handle_point_turn(self, x_f: float) -> None:
+        """
+        Configure wheels for a zero-point turn.
+        
+        Args:
+            x_f: Normalized X-axis (-1.0 to 1.0)
+        """
+        if x_f > 0:  # Clockwise rotation
+            # Set wheel angles for clockwise rotation
+            self._set_steering_angle(135, 1)  # Front left -> right
+            self._set_steering_angle(135, 2)  # Front right -> right  
+            self._set_steering_angle(45, 3)   # Rear left -> left
+            self._set_steering_angle(45, 4)   # Rear right -> left
+            
+            # Set speeds for rotation - front wheels forward, rear wheels reverse
+            speed = 90 + int(90 * abs(x_f))
+            rev_speed = 90 - int(90 * abs(x_f))
+            speed = clamp(speed, 0, 180)
+            rev_speed = clamp(rev_speed, 0, 180)
+            
+            self._set_wheel_speeds(speed, speed, rev_speed, rev_speed)
+            
+        else:  # Counter-clockwise rotation
+            # Set wheel angles for counter-clockwise rotation
+            self._set_steering_angle(45, 1)   # Front left -> left
+            self._set_steering_angle(45, 2)   # Front right -> left
+            self._set_steering_angle(135, 3)  # Rear left -> right
+            self._set_steering_angle(135, 4)  # Rear right -> right
+            
+            # Set speeds for rotation - front wheels reverse, rear wheels forward
+            speed = 90 + int(90 * abs(x_f))
+            rev_speed = 90 - int(90 * abs(x_f))
+            speed = clamp(speed, 0, 180)
+            rev_speed = clamp(rev_speed, 0, 180)
+            
+            self._set_wheel_speeds(rev_speed, rev_speed, speed, speed)
+
+    def _handle_differential_steering(self, x_f: float, y_f: float, magnitude: float) -> None:
+        """
+        Handle differential steering for forward/backward movement with turning.
+        
+        Args:
+            x_f: Normalized X-axis (-1.0 to 1.0)
+            y_f: Normalized Y-axis (-1.0 to 1.0)
+            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
+        """
+        # Set all wheels pointing forward
+        self._center_wheels()
+        
+        # Calculate speed based on y_axis (positive = forward, negative = backward)
+        base_speed = 90 + int(90 * y_f)
+        base_speed = clamp(base_speed, 0, 180)
+        
+        # Apply differential steering for turning while moving
+        turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
+        turn_factor = x_f * turn_sensitivity
+        
+        left_speed = int(base_speed - (turn_factor * 90))
+        right_speed = int(base_speed + (turn_factor * 90))
+        
+        left_speed = clamp(left_speed, 0, 180)
+        right_speed = clamp(right_speed, 0, 180)
+        
+        # Apply speeds to the left and right sides
+        self._set_wheel_speeds(left_speed, right_speed, left_speed, right_speed)
+
+    # ------------------- Button processing functions -------------------
+
+    def _check_auto_toggle(self, buttons: Dict[str, Any]) -> None:
+        """
+        Check if autonomous mode should be toggled.
+        
+        Args:
+            buttons: Dictionary of button states
+        """
+        if buttons["select"] != self.select:
+            self.select = buttons["select"]
+            if self.select:
+                self.digging = not self.digging
+                mode = "started" if self.digging else "stopped"
+                self.get_logger().info(f"Autonomous digging {mode}")
+
+    def _process_belt_controls(self, buttons: Dict[str, Any]) -> None:
+        """
+        Process belt-related button inputs.
+        
+        Args:
+            buttons: Dictionary of button states
+        """
+        # Y button cycles belt speeds
+        if buttons["button_y"] != self.button_y:
+            if buttons["button_y"]:
+                # Only cycle speeds on button press, not release
+                self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
+                self.get_logger().info(f"Belt speed set to level {self.belt_speed_index+1}/{len(self.belt_speeds)}")
+            self.button_y = buttons["button_y"]
+
+        # B button => belt reverse, or off
+        if buttons["button_b"] != self.button_b:
+            self.button_b = buttons["button_b"]
+            cmd = StringGen.belt_string(buttons["button_b"], BELT_REVERSE_SPEED)
+            self.send_i2c(I2CAddress.BELT, cmd)
+
+        # D-pad up => belt position right
+        if buttons["dpad_up"] != self.dpad_up:
+            self._move_belt_position(buttons["dpad_up"], RIGHT)
+            self.dpad_up = buttons["dpad_up"]
+        
+        # D-pad down => belt position left
+        if buttons["dpad_down"] != self.dpad_down:
+            self._move_belt_position(buttons["dpad_down"], LEFT)
+            self.dpad_down = buttons["dpad_down"]
+
+        # Left bumper => belt forward (with current speed index)
+        if buttons["lbutton"] != self.lbutton:
+            speed = self.belt_speeds[self.belt_speed_index]
+            cmd = StringGen.belt_string(buttons["lbutton"], speed)
+            self.send_i2c(I2CAddress.BELT, cmd)
+            self.lbutton = buttons["lbutton"]
+
+    def _process_movement_controls(self, buttons: Dict[str, Any]) -> None:
+        """
+        Process movement-related button inputs.
+        
+        Args:
+            buttons: Dictionary of button states
+        """
+        # Right bumper toggles driving mode (rotate <-> crab)
+        if buttons["rbutton"] != self.rbutton:
+            if buttons["rbutton"] == 1 and self.rbutton == 0:
+                self.driving_mode = 1 - self.driving_mode
+                mode_name = "Crab" if self.driving_mode == DrivingMode.CRAB else "Rotate"
+                self.set_diagnostic_status(
+                    DiagnosticStatus.OK, 
+                    f"4WS driving mode changed to: {mode_name}"
+                )
+            self.rbutton = buttons["rbutton"]
+
+        # Right trigger => forward
+        if buttons['rtrigger'] != self.rtrigger:
+            self.rtrigger = buttons['rtrigger']
+            if self.rtrigger:
+                self.four_wheel_steering_handler(0, -100) 
+            else:
+                # Only stop if this trigger was controlling movement
+                if self.ltrigger == 0:
+                    self.stop_all()
+
+        # Left trigger => reverse
+        if buttons['ltrigger'] != self.ltrigger:
+            self.ltrigger = buttons['ltrigger']
+            if self.ltrigger:
+                self.four_wheel_steering_handler(0, 100)
+            else:
+                # Only stop if this trigger was controlling movement
+                if self.rtrigger == 0:
+                    self.stop_all()
+
+    def _process_misc_controls(self, buttons: Dict[str, Any]) -> None:
+        """
+        Process miscellaneous button inputs.
+        
+        Args:
+            buttons: Dictionary of button states
+        """
+        # X button => deposit forward/back
+        if buttons["button_x"] != self.button_x:
+            cmd = StringGen.deposit_string(buttons["button_x"], FORWARD)
+            self.send_i2c(I2CAddress.AUGER, cmd)
+            self.button_x = buttons["button_x"]
+
+    # ------------------- Helper methods -------------------
+
+    def _parse_axis(self, data: List[int]) -> Dict[str, int]:
+        """
+        Parse axis data from controller.
+        
+        Args:
+            data: List of axis values from controller
+            
+        Returns:
+            Dictionary of named axis values
+        """
         return {
             "lstick_x": data[0],  # -100 .. 100
             "lstick_y": data[1],  # -100 .. 100
@@ -162,7 +564,16 @@ class ControllerParser(Node):
             "rstick_y": data[3]
         }
 
-    def parse_buttons(self, data):
+    def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
+        """
+        Parse button data from controller.
+        
+        Args:
+            data: List of button values from controller
+            
+        Returns:
+            Dictionary of named button values
+        """
         return {
             "button_a": data[0]/100,
             "button_b": data[1]/100,
@@ -182,363 +593,146 @@ class ControllerParser(Node):
             "dpad_right": data[15]/100,
         }
 
-    # -------------------------------------------------------------------------
-    # Four-wheel steering logic
-    # -------------------------------------------------------------------------
-    def four_wheel_steering_handler(self, x, y):
+    def _set_steering_angle(self, angle: int, channel: int) -> None:
         """
-        Given x, y from left stick in [-100..100],
-        compute servo angle + motor speed for each of the 4 wheels.
+        Set the steering angle for a specific wheel.
         
-        Modes:
-        - Crab mode (1): All wheels point in the same direction for translation with no rotation
-        - Zero-point turn mode (0): Wheels positioned to enable rotation around the center
-        
-        Each servo gets a separate position command (0-180) and each motor gets a speed (0-180)
-        90 = forward/stopped, 0 = left/reverse, 180 = right/forward
+        Args:
+            angle: Angle to set (0-180)
+            channel: Channel number (1-4)
         """
-        # Normalize inputs to [-1.0, 1.0]
-        x_f = x / 100.0
-        y_f = y / 100.0
+        self.send_i2c(I2CAddress.STEERING_SERVO, (angle, channel))
+
+    def _set_wheel_speeds(self, 
+                         front_left: int, 
+                         front_right: int, 
+                         rear_left: int, 
+                         rear_right: int) -> None:
+        """
+        Set the speeds for all four wheels.
         
-        # Calculate magnitude of joystick movement (0.0 to 1.0)
-        magnitude = hypot(x_f, y_f)
+        Args:
+            front_left: Speed for front left wheel (0-180)
+            front_right: Speed for front right wheel (0-180)
+            rear_left: Speed for rear left wheel (0-180)
+            rear_right: Speed for rear right wheel (0-180)
+        """
+        self.send_i2c(I2CAddress.FRONT_LEFT, front_left)
+        self.send_i2c(I2CAddress.FRONT_RIGHT, front_right)
+        self.send_i2c(I2CAddress.REAR_LEFT, rear_left)
+        self.send_i2c(I2CAddress.REAR_RIGHT, rear_right)
+
+    def _center_wheels(self) -> None:
+        """Set all wheels to center position (straight)."""
+        for channel in range(1, 5):
+            self._set_steering_angle(90, channel)
+
+    def _stop_motors(self) -> None:
+        """Stop all wheel motors."""
+        self._set_wheel_speeds(90, 90, 90, 90)
+
+    def _move_belt_position(self, enabled: bool, direction: str) -> None:
+        """
+        Move the belt position.
         
-        # Ignore very small movements
-        if magnitude < 0.1:
-            # Stop all motors and center all wheels
-            for addr in [FRONT_LEFT_ADDR, FRONT_RIGHT_ADDR, REAR_LEFT_ADDR, REAR_RIGHT_ADDR]:
-                self.send_i2c(addr, 90)  # Stop motor
-            
-            for channel in range(1, 5):
-                self.send_i2c(STEERING_SERVO_ADDR, (90, channel))  # Center servo
-            return
-            
-        if self.driving_mode == 1:
-            # -----------------
-            # Crab mode - all wheels point in same direction, no rotation
-            # -----------------
-            
-            # Calculate angle from joystick position (in degrees)
-            # atan2(y, x) gives angle from positive x-axis, but we need from positive y-axis
-            # so we use atan2(x, y) instead and adjust
-            angle_radians = atan2(x_f, y_f)
-            servo_angle = 90 + degrees(angle_radians)  # Convert to 0-180 range
-            servo_angle = clamp(int(servo_angle), 0, 180)
-            
-            # Set all servos to the same angle
-            for channel in range(1, 5):
-                self.send_i2c(STEERING_SERVO_ADDR, (servo_angle, channel))
-            
-            # Calculate speed based on magnitude (90 = stopped, 180 = full forward, 0 = full reverse)
-            # Sign based on direction relative to forward
-            speed = 90 - int(90 * magnitude * (1 if y_f >= 0 else -1))
-            speed = clamp(speed, 0, 180)
-            
-            # Apply the same speed to all motors
-            self.send_i2c(FRONT_LEFT_ADDR, speed)
-            self.send_i2c(FRONT_RIGHT_ADDR, speed)
-            self.send_i2c(REAR_LEFT_ADDR, speed)
-            self.send_i2c(REAR_RIGHT_ADDR, speed)
-            
-        else:
-            # -----------------
-            # Zero-point turn mode - wheels positioned to maximize rotation
-            # -----------------
-            
-            # For small Y movement but larger X movement, do a zero-point turn
-            if abs(x_f) > abs(y_f) and abs(x_f) > 0.3:
-                # For rotation, front wheels point one way, rear wheels the opposite
-                if x_f > 0:  # Clockwise rotation
-                    # Front wheels right, rear wheels left
-                    self.send_i2c(STEERING_SERVO_ADDR, (135, 1))  # Front left -> right
-                    self.send_i2c(STEERING_SERVO_ADDR, (135, 2))  # Front right -> right  
-                    self.send_i2c(STEERING_SERVO_ADDR, (45, 3))   # Rear left -> left
-                    self.send_i2c(STEERING_SERVO_ADDR, (45, 4))   # Rear right -> left
-                    
-                    # Set speeds for rotation - front wheels forward, rear wheels reverse
-                    speed = 90 + int(90 * abs(x_f))
-                    rev_speed = 90 - int(90 * abs(x_f))
-                    speed = clamp(speed, 0, 180)
-                    rev_speed = clamp(rev_speed, 0, 180)
-                    
-                    self.send_i2c(FRONT_LEFT_ADDR, speed)
-                    self.send_i2c(FRONT_RIGHT_ADDR, speed)
-                    self.send_i2c(REAR_LEFT_ADDR, rev_speed)
-                    self.send_i2c(REAR_RIGHT_ADDR, rev_speed)
-                    
-                else:  # Counter-clockwise rotation
-                    # Front wheels left, rear wheels right
-                    self.send_i2c(STEERING_SERVO_ADDR, (45, 1))   # Front left -> left
-                    self.send_i2c(STEERING_SERVO_ADDR, (45, 2))   # Front right -> left
-                    self.send_i2c(STEERING_SERVO_ADDR, (135, 3))  # Rear left -> right
-                    self.send_i2c(STEERING_SERVO_ADDR, (135, 4))  # Rear right -> right
-                    
-                    # Set speeds for rotation - front wheels reverse, rear wheels forward
-                    speed = 90 + int(90 * abs(x_f))
-                    rev_speed = 90 - int(90 * abs(x_f))
-                    speed = clamp(speed, 0, 180)
-                    rev_speed = clamp(rev_speed, 0, 180)
-                    
-                    self.send_i2c(FRONT_LEFT_ADDR, rev_speed)
-                    self.send_i2c(FRONT_RIGHT_ADDR, rev_speed)
-                    self.send_i2c(REAR_LEFT_ADDR, speed)
-                    self.send_i2c(REAR_RIGHT_ADDR, speed)
-            else:
-                # For forward/backward movement with some turning
-                # First, set all wheels pointing forward
-                for channel in range(1, 5):
-                    self.send_i2c(STEERING_SERVO_ADDR, (90, channel))
-                
-                # Calculate speed based on y_axis (positive = forward, negative = backward)
-                base_speed = 90 + int(90 * y_f)
-                base_speed = clamp(base_speed, 0, 180)
-                
-                # Apply differential steering for turning while moving
-                turn_factor = x_f * 0.5  # Reduce turning sensitivity
-                
-                left_speed = int(base_speed - (turn_factor * 90))
-                right_speed = int(base_speed + (turn_factor * 90))
-                
-                left_speed = clamp(left_speed, 0, 180)
-                right_speed = clamp(right_speed, 0, 180)
-                
-                # Apply speeds to the left and right sides
-                self.send_i2c(FRONT_LEFT_ADDR, left_speed)
-                self.send_i2c(REAR_LEFT_ADDR, left_speed)
-                self.send_i2c(FRONT_RIGHT_ADDR, right_speed)
-                self.send_i2c(REAR_RIGHT_ADDR, right_speed)
+        Args:
+            enabled: Whether movement is enabled
+            direction: Direction of movement ('l' or 'r')
+        """
+        cmd = StringGen.belt_position_string(enabled, direction)
+        self.send_i2c(I2CAddress.BELT, cmd)
 
-    # -------------------------------------------------------------------------
-    # Axis callback => 4WS for left stick
-    # (Camera control commented out)
-    # -------------------------------------------------------------------------
-    def axis_callback(self, request):
-        try:
-            axis = self.parse_axis(request.data)
-            self.four_wheel_steering_handler(axis['lstick_x'], axis['lstick_y'])
-            
-            # Commented out camera control:
-            # self.camera_stick_handler(axis)
-        except Exception as e:
-            self.diag(DiagnosticStatus.ERROR, f"Exception in gamepad axis callback: {str(e)}")
+    def _start_belt(self) -> None:
+        """Start the belt with the current speed setting."""
+        speed = self.belt_speeds[self.belt_speed_index]
+        cmd = StringGen.belt_string(1, speed)
+        self.send_i2c(I2CAddress.BELT, cmd)
 
+    def _stop_belt(self) -> None:
+        """Stop the belt."""
+        cmd = StringGen.belt_string(0, 90)
+        self.send_i2c(I2CAddress.BELT, cmd)
 
-    # -------------------------------------------------------------------------
-    # If autonomy is running, ignore manual commands
-    # -------------------------------------------------------------------------
-    def check_auto(self, buttons):
-        if buttons["select"] != self.select:
-            self.select = buttons["select"]
-            if self.select:
-                self.digging = not self.digging
-
-    # -------------------------------------------------------------------------
-    # Belt / deposit commands => I2C
-    # -------------------------------------------------------------------------
-    def belt_handler(self, buttons):
-        # Y button cycles belt speeds
-        if buttons["button_y"] and buttons["button_y"] != self.button_y:
-            self.button_y = buttons["button_y"]
-            self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
-
-        elif buttons["button_y"] == 0 and buttons["button_y"] != self.button_y:
-            self.button_y = 0
-
-        # B button => belt reverse, or off
-        if buttons["button_b"] != self.button_b:
-            self.button_b = buttons["button_b"]
-            cmd = StringGen.belt_string(buttons["button_b"], belt_reverse_speed)
-            self.send_i2c(BELT_ADDR, cmd)
-
-        # D-pad up => belt position right
-        if buttons["dpad_up"] != self.dpad_up:
-            cmd = StringGen.belt_position_string(buttons["dpad_up"], right)
-            self.send_i2c(BELT_ADDR, cmd)
-            self.dpad_up = buttons["dpad_up"]
-        
-        # D-pad down => belt position left
-        if buttons["dpad_down"] != self.dpad_down:
-            cmd = StringGen.belt_position_string(buttons["dpad_down"], left)
-            self.send_i2c(BELT_ADDR, cmd)
-            self.dpad_down = buttons["dpad_down"]
-
-        # Left bumper => belt forward (with current speed index)
-        if buttons["lbutton"] != self.lbutton:
-            speed = self.belt_speeds[self.belt_speed_index]
-            cmd = StringGen.belt_string(buttons["lbutton"], speed)
-            self.send_i2c(BELT_ADDR, cmd)
-            self.lbutton = buttons["lbutton"]
-
-    # -------------------------------------------------------------------------
-    # Movement triggers => old tank logic or toggling 4WS mode
-    # (You can remove if not needed anymore)
-    # -------------------------------------------------------------------------
-    def button_movement_handler(self, buttons):
-        # Right bumper toggles driving mode (rotate <-> crab)
-        if buttons["rbutton"] != self.rbutton:
-            if buttons["rbutton"] == 1 and self.rbutton == 0:
-                self.driving_mode = 1 - self.driving_mode
-                mode_name = "Crab" if self.driving_mode == 1 else "Rotate"
-                self.diag(DiagnosticStatus.OK, f"4WS driving mode changed to: {mode_name}")
-            self.rbutton = buttons["rbutton"]
-
-        # If still using triggers for “forward/back” in old style:
-        # You can either comment this out or adapt it. 
-        # Right trigger => forward, left trigger => reverse (or vice versa).
-        if buttons['rtrigger'] != self.rtrigger:
-            self.rtrigger = buttons['rtrigger']
-            if self.rtrigger:
-                lspeed, rspeed = self.calculate_speed(0, -(self.rtrigger*0.8)+15)
-                # Instead of old serial:
-                #   self.serial_publisher.publish(StringGen.movement_string(lspeed, rspeed))
-                # we can do direct I2C to all 4 wheels:
-                self.four_wheel_steering_handler(0, -100) 
-            else:
-                # Stop
-                self.stop_all()
-
-        if buttons['ltrigger'] != self.ltrigger:
-            self.ltrigger = buttons['ltrigger']
-            if self.ltrigger:
-                lspeed, rspeed = self.calculate_speed(0, (self.ltrigger*0.8)+15)
-                self.four_wheel_steering_handler(0, 100)
-            else:
-                # Stop
-                self.stop_all()
-
-    # -------------------------------------------------------------------------
-    # Misc: deposit, etc. (Removed camera + vibrator)
-    # -------------------------------------------------------------------------
-    def misc_button_handler(self, buttons):
-        # Comment out vibration functionality
-        # if buttons["button_a"] != self.button_a:
-        #     self.button_a = buttons["button_a"]
-        #     cmd = StringGen.vibrator_string(buttons["button_a"])
-        #     self.send_i2c(SOME_VIB_ADDR, list(cmd.encode('ascii')))
-
-        # X button => deposit forward/back
-        if buttons["button_x"] != self.button_x:
-            cmd = StringGen.deposit_string(buttons["button_x"], forward)
-            # Send to the auger address
-            self.send_i2c(AUGER_ADDR, cmd)
-            self.button_x = buttons["button_x"]
-
-        # If you previously used dpad_left/dpad_right to move camera arm,
-        # comment it out to disable camera movement:
-        #
-        # if buttons['dpad_left']:
-        #     ...
-        # if buttons['dpad_right']:
-        #     ...
-
-    # -------------------------------------------------------------------------
-    # The main button callback
-    # -------------------------------------------------------------------------
-    def button_callback(self, request):
-        try:
-            data = request.data
-            buttons = self.parse_buttons(data)
-
-            self.check_auto(buttons)
-            if self.digging:
-                # Autonomy is running => ignore manual
-                return
-            
-            # If not digging, handle everything
-            # Commented out camera preset:
-            # self.camera_preset_handler(buttons)
-
-            self.belt_handler(buttons)
-            self.button_movement_handler(buttons)
-            self.misc_button_handler(buttons)
-
-        except Exception as e:
-            self.diag(DiagnosticStatus.ERROR, f"Exception in gamepad button callback: {str(e)}")
-
-    # -------------------------------------------------------------------------
-    # Stop all movement
-    # -------------------------------------------------------------------------
-    def stop_all(self):
+    def stop_all(self) -> None:
+        """Stop all movement and reset positions."""
         # Stop wheels
-        self.send_i2c(FRONT_LEFT_ADDR,  [90, 90])
-        self.send_i2c(FRONT_RIGHT_ADDR, [90, 90])
-        self.send_i2c(REAR_LEFT_ADDR,   [90, 90])
-        self.send_i2c(REAR_RIGHT_ADDR,  [90, 90])
+        self._stop_motors()
+        self._center_wheels()
 
         # Stop belt
-        belt_stop = StringGen.belt_string(0, 90)
-        self.send_i2c(BELT_ADDR, belt_stop)
+        self._stop_belt()
 
         # Reset belt position
-        belt_pos = StringGen.belt_position_string(0, right)
-        self.send_i2c(BELT_ADDR, belt_pos)
+        self._move_belt_position(0, RIGHT)
 
         # Stop deposit/auger
-        deposit_stop = StringGen.deposit_string(0, forward)
-        self.send_i2c(AUGER_ADDR, deposit_stop)
+        deposit_stop = StringGen.deposit_string(0, FORWARD)
+        self.send_i2c(I2CAddress.AUGER, deposit_stop)
+        
+        self.get_logger().info("All movement stopped")
 
-        # Comment out vibrator:
-        # vib_stop = StringGen.vibrator_string(0)
-        # self.send_i2c(SOME_VIB_ADDR, vib_stop)
-
-    def diag(self, status, message):
-        # For quick debugging in console, using error-level logs
-        self.get_logger().error(message)
-        self.diagnostic_status.level = status
+    def set_diagnostic_status(self, level: int, message: str) -> None:
+        """
+        Set the diagnostic status and log appropriately.
+        
+        Args:
+            level: Diagnostic level (OK, WARN, ERROR)
+            message: Status message
+        """
+        self.diagnostic_status.level = level
         self.diagnostic_status.message = message
+        
+        if level == DiagnosticStatus.ERROR:
+            self.get_logger().error(message)
+        elif level == DiagnosticStatus.WARN:
+            self.get_logger().warning(message)
+        else:
+            self.get_logger().info(message)
 
-    # -------------------------------------------------------------------------
-    # Heartbeat => ensure we stop if no connection
-    # -------------------------------------------------------------------------
-    def heartbeat(self):
-        self.diag_topic.publish(self.diagnostic_status)
-        if self.connected == 1 and (datetime.datetime.now() - self.connection_time).total_seconds() > 2:
-            self.connected = 0
-            self.diag(DiagnosticStatus.ERROR, "Connection to gamepad lost.")
-            self.stop_all()
-
-    # -------------------------------------------------------------------------
-    # Original tank-like speed utility (if still used by triggers)
-    # -------------------------------------------------------------------------
-    def calculate_speed(self, x_axis, y_axis):
-        full_forward = 130
-        stopped = 90
-        full_reverse = 50  # (symmetric about 90)
-
-        if abs(x_axis) < 15 and abs(y_axis) < 15:
-            x_axis = 0
-            y_axis = 0
-
-        speed = (-y_axis) * ((full_forward - full_reverse)/200) + stopped
-        direction = (x_axis) * ((full_forward - full_reverse)/200) * 0.75
-
-        left_speed = round(clamp(speed - direction, full_reverse, full_forward))
-        right_speed = round(clamp(speed + direction, full_reverse, full_forward))
-        return left_speed, right_speed
-
-    # -------------------------------------------------------------------------
-    # The new I2C-sending function
-    # -------------------------------------------------------------------------
-    def send_i2c(self, address, data):
-        # data may be an int or a tuple/list
+    def send_i2c(self, address: int, data: Union[int, Tuple, List]) -> None:
+        """
+        Send an I2C command.
+        
+        Args:
+            address: I2C address
+            data: Data to send (can be an int, tuple, or list)
+        """
+        # Format the message based on data type
         if isinstance(data, (tuple, list)) and len(data) == 2:
             val, channel = data
             msg_str = f"{hex(address)}:{val},{channel}"
         elif isinstance(data, (tuple, list)):
-            # fallback: join all items
+            # Format a list of values
             msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
+        elif isinstance(data, String):
+            # Handle String messages (from StringGen)
+            msg_str = f"{hex(address)}:{data.data}"
         else:
+            # Handle integer or other simple values
             msg_str = f"{hex(address)}:{data}"
+            
+        # Publish the formatted message
         self.i2c_publisher.publish(String(data=msg_str))
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    controller_parser = ControllerParser()
-    rclpy.spin(controller_parser)
-    controller_parser.stop_all()
-    rclpy.shutdown()
+    """Main entry point for the node."""
+    try:
+        rclpy.init(args=args)
+        controller_parser = ControllerParser()
+        
+        try:
+            rclpy.spin(controller_parser)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            # Ensure motors are stopped when shutting down
+            controller_parser.stop_all()
+            controller_parser.destroy_node()
+            rclpy.shutdown()
+    except Exception as e:
+        print(f"Error in controller_parser: {str(e)}")
+
 
 if __name__ == '__main__':
     main()
