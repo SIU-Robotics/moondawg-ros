@@ -232,7 +232,7 @@ class ControllerParser(Node):
             
             # Calculate speed based on magnitude (90 = stopped, 180 = full forward, 0 = full reverse)
             # Sign based on direction relative to forward
-            speed = 90 + int(90 * magnitude * (1 if y_f >= 0 else -1))
+            speed = 90 - int(90 * magnitude * (1 if y_f >= 0 else -1))
             speed = clamp(speed, 0, 180)
             
             # Apply the same speed to all motors
