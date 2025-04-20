@@ -165,10 +165,6 @@ class I2CNode(Node):
         Raises:
             ValueError: If parsing fails
         """
-        # Check if it's a byte string
-        if value_str.startswith("b'") or value_str.startswith('b"'):
-            return ord(eval(value_str))
-            
         # Try to parse as int (hex or decimal)
         try:
             return int(value_str, 0)
