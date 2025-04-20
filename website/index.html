@@ -6,16 +6,21 @@
     <link href="./bootstrap.min.css" rel="stylesheet">
     <style>
         body {
-            padding: 20px;
+            padding: 10px;
             background-color: #f8f9fa;
+            overflow-x: hidden;
+            font-size: 1.05rem;
+        }
+        .container-fluid {
+            padding: 0 12px;
         }
         .controller-card {
             border-left: 5px solid #007bff;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
         .status-indicator {
-            width: 15px;
-            height: 15px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             display: inline-block;
             margin-right: 5px;
@@ -27,179 +32,207 @@
             background-color: #dc3545;
         }
         .diagnostic-panel {
-            height: 150px;
+            height: 140px;
             overflow-y: auto;
             background-color: #f8f9fa;
             padding: 10px;
             border-radius: 5px;
             border: 1px solid #dee2e6;
+            font-size: 0.9rem;
         }
         .i2c-command-panel {
             height: 300px;
-            overflow-y: auto;
+            display: flex;
+            flex-flow: column wrap;
+            align-content: flex-start;
+            overflow-x: auto;
             background-color: #f8f9fa;
             padding: 10px;
             border-radius: 5px;
             border: 1px solid #dee2e6;
+            font-size: 0.9rem;
         }
         .i2c-item {
             border-left: 3px solid #28a745;
-            margin-bottom: 8px;
-            padding: 8px;
+            margin-bottom: 6px;
+            margin-right: 6px;
+            padding: 6px;
             background-color: white;
             border-radius: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            width: 400px;
+            flex: 0 0 auto;
         }
         .controller-map {
             background-color: #ffffff;
             border-radius: 8px;
-            padding: 15px;
+            padding: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 12px;
         }
         .video-container {
             text-align: center;
-            margin: 20px 0;
+            margin: 12px 0;
         }
         #video_out {
             max-width: 100%;
             height: auto;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        /* Styling for active controller elements */
         .table-primary {
             transition: background-color 0.2s ease;
+        }
+        .card {
+            margin-bottom: 12px;
+        }
+        .card-header {
+            padding: 10px 15px;
+            font-size: 1.05rem;
+        }
+        .card-body {
+            padding: 12px 15px;
+        }
+        h1, h4, h5, h6 {
+            margin-bottom: 10px;
+        }
+        .compact-table th, .compact-table td {
+            padding: 6px 10px;
+            font-size: 0.9rem;
+        }
+        .compact-pre {
+            margin-bottom: 0;
+            padding: 8px;
+            font-size: 0.9rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .slim-row {
+            margin-left: -6px;
+            margin-right: -6px;
+        }
+        .slim-row > div {
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+        .page-header {
+            padding: 8px 0;
+            margin-bottom: 12px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="row mb-4">
+    <div class="container-fluid">
+        <div class="row page-header">
             <div class="col-12">
-                <h1 class="display-4 text-center">MoonDawg Robot Control Interface</h1>
+                <h3 class="text-center">MoonDawg Robot Control Interface</h3>
             </div>
         </div>
         
-        <div class="row">
-            <!-- Left column with video feed -->
-            <div class="col-lg-8">
-                <div class="video-container mb-3">
-                    <img src="novideo.png" id="video_out" class="img-fluid"></img>
-                </div>
-                
-                <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Connection Status</h5>
-                        <div>
-                            <span class="status-indicator disconnected" id="ros-status"></span>
-                            <span id="ros-status-text">Disconnected</span>
-                            &nbsp;&nbsp;|&nbsp;&nbsp;
-                            <span class="status-indicator disconnected" id="controller-status"></span>
-                            <span id="controller-status-text">No Controller</span>
+        <div class="row slim-row">
+            <!-- Left column with video feed and diagnostics -->
+            <div class="col-lg-8 pe-lg-2">
+                <div class="row slim-row">
+                    <div class="col-md-8">
+                        <div class="video-container mb-2">
+                            <img src="novideo.png" id="video_out" class="img-fluid"></img>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card controller-card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Controller Diagnostics</h6>
-                                        <div class="diagnostic-panel" id="controller_diag">Waiting for data...</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card controller-card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">I2C Diagnostics</h6>
-                                        <div class="diagnostic-panel" id="i2c_diag">Waiting for data...</div>
-                                    </div>
+                    <div class="col-md-4">
+                        <!-- Status and diagnostics -->
+                        <div class="card mb-2">
+                            <div class="card-header d-flex justify-content-between align-items-center p-2">
+                                <h6 class="mb-0">Status</h6>
+                                <div>
+                                    <span class="status-indicator disconnected" id="ros-status"></span>
+                                    <small id="ros-status-text">Disconnected</small>
+                                    |
+                                    <span class="status-indicator disconnected" id="controller-status"></span>
+                                    <small id="controller-status-text">No Controller</small>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- New I2C Command History Panel -->
-                <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">I2C Command History</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="i2c-command-panel" id="i2c_command_history">
-                            <div class="text-center text-muted py-4">
-                                Waiting for I2C commands...
+                        
+                        <div class="card controller-card mb-2">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">Controller Diagnostics</h6>
+                                <div class="diagnostic-panel" id="controller_diag">Waiting for data...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="card controller-card mb-2">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">I2C Diagnostics</h6>
+                                <div class="diagnostic-panel" id="i2c_diag">Waiting for data...</div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">Controller Data</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Axis Values:</h6>
-                                <pre class="bg-light p-2 rounded" id="axis-display">Waiting for controller...</pre>
-                            </div>
-                            <div class="col-md-6">
-                                <h6>Button Values:</h6>
-                                <pre class="bg-light p-2 rounded" id="button-display">Waiting for controller...</pre>
+                <div class="row slim-row">
+                    <div class="col-12">
+                        <!-- I2C Command History Panel -->
+                        <div class="card mb-2">
+                            <div class="card-header p-2 d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">I2C Command History</h6>
+                                                            </div>
+                            <div class="card-body p-2">
+                                <div class="i2c-command-panel" id="i2c_command_history">
+                                    <div class="text-center text-muted py-2">
+                                        <small>Waiting for I2C commands...</small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- System Parameters -->
+                <div class="card mb-2">
+                    <div class="card-header p-2">
+                        <h6 class="mb-0">System Parameters</h6>
+                    </div>
+                    <div class="card-body p-2">
+                        <div id="params-display" class="small" style="max-height: 100px; overflow-y: auto;">Loading parameters...</div>
                     </div>
                 </div>
             </div>
             
             <!-- Right column with controller mapping -->
-            <div class="col-lg-4">
-                <div class="controller-map mb-3">
-                    <h4 class="text-center mb-3">Controller Mapping</h4>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <table class="table table-sm table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Button/Control</th>
-                                        <th>Function</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr id="mapping-button-lt" class="controller-mapping-row"><td><b>Left Trigger</b></td><td>Move Backward</td></tr>
-                                    <tr id="mapping-button-lb" class="controller-mapping-row"><td><b>Left Bumper</b></td><td>Belt</td></tr>
-                                    <tr id="mapping-button-ls" class="controller-mapping-row"><td><b>L3</b></td><td>Camera Preset 1</td></tr>
-                                    <tr id="mapping-button-rt" class="controller-mapping-row"><td><b>Right Trigger</b></td><td>Move Forward</td></tr>
-                                    <tr id="mapping-button-rb" class="controller-mapping-row"><td><b>Right Bumper</b></td><td>Move Forward Slowly</td></tr>
-                                    <tr id="mapping-button-rs" class="controller-mapping-row"><td><b>R3</b></td><td>Camera Preset 2</td></tr>
-                                    <tr id="mapping-button-back" class="controller-mapping-row"><td><b>Select</b></td><td>Start Dig Autonomy</td></tr>
-                                    <tr id="mapping-button-start" class="controller-mapping-row"><td><b>Start</b></td><td>Camera Preset 3</td></tr>
-                                    <tr id="mapping-dpad-up" class="controller-mapping-row"><td><b>D-Pad Up</b></td><td>Raise belt</td></tr>
-                                    <tr id="mapping-dpad-down" class="controller-mapping-row"><td><b>D-Pad Down</b></td><td>Lower belt</td></tr>
-                                    <tr id="mapping-dpad-left" class="controller-mapping-row"><td><b>D-Pad Left</b></td><td>Raise camera</td></tr>
-                                    <tr id="mapping-dpad-right" class="controller-mapping-row"><td><b>D-Pad Right</b></td><td>Lower camera</td></tr>
-                                    <tr id="mapping-button-y" class="controller-mapping-row"><td><b>Y Button</b></td><td>Belt Speed</td></tr>
-                                    <tr id="mapping-button-x" class="controller-mapping-row"><td><b>X Button</b></td><td>Deposit</td></tr>
-                                    <tr id="mapping-button-a" class="controller-mapping-row"><td><b>A Button</b></td><td>Vibrate</td></tr>
-                                    <tr id="mapping-button-b" class="controller-mapping-row"><td><b>B Button</b></td><td>Reverse Belt</td></tr>
-                                    <tr id="mapping-left-stick-x" class="controller-mapping-row"><td><b>Left Joystick (X)</b></td><td>Move Left/Right</td></tr>
-                                    <tr id="mapping-left-stick-y" class="controller-mapping-row"><td><b>Left Joystick (Y)</b></td><td>Move Forward/Back</td></tr>
-                                    <tr id="mapping-right-stick-x" class="controller-mapping-row"><td><b>Right Joystick (X)</b></td><td>Camera Pan</td></tr>
-                                    <tr id="mapping-right-stick-y" class="controller-mapping-row"><td><b>Right Joystick (Y)</b></td><td>Camera Tilt</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">System Parameters</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="params-display" class="small">Loading parameters...</div>
-                    </div>
+            <div class="col-lg-4 ps-lg-2">
+                <div class="controller-map">
+                    <h5 class="text-center mb-2">Controller Mapping</h5>
+                    <table class="table table-sm table-hover compact-table mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="30%">Button/Control</th>
+                                <th width="50%">Function</th>
+                                <th width="20%">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr id="mapping-button-lt" class="controller-mapping-row"><td><b>Left Trigger</b></td><td>Move Backward</td><td class="controller-value" data-control="button-lt">-</td></tr>
+                            <tr id="mapping-button-lb" class="controller-mapping-row"><td><b>Left Bumper</b></td><td>Belt</td><td class="controller-value" data-control="button-lb">-</td></tr>
+                            <tr id="mapping-button-ls" class="controller-mapping-row"><td><b>L3</b></td><td>Camera Preset 1</td><td class="controller-value" data-control="button-ls">-</td></tr>
+                            <tr id="mapping-button-rt" class="controller-mapping-row"><td><b>Right Trigger</b></td><td>Move Forward</td><td class="controller-value" data-control="button-rt">-</td></tr>
+                            <tr id="mapping-button-rb" class="controller-mapping-row"><td><b>Right Bumper</b></td><td>Move Forward Slowly</td><td class="controller-value" data-control="button-rb">-</td></tr>
+                            <tr id="mapping-button-rs" class="controller-mapping-row"><td><b>R3</b></td><td>Camera Preset 2</td><td class="controller-value" data-control="button-rs">-</td></tr>
+                            <tr id="mapping-button-back" class="controller-mapping-row"><td><b>Select</b></td><td>Start Dig Autonomy</td><td class="controller-value" data-control="button-back">-</td></tr>
+                            <tr id="mapping-button-start" class="controller-mapping-row"><td><b>Start</b></td><td>Camera Preset 3</td><td class="controller-value" data-control="button-start">-</td></tr>
+                            <tr id="mapping-dpad-up" class="controller-mapping-row"><td><b>D-Pad Up</b></td><td>Raise belt</td><td class="controller-value" data-control="dpad-up">-</td></tr>
+                            <tr id="mapping-dpad-down" class="controller-mapping-row"><td><b>D-Pad Down</b></td><td>Lower belt</td><td class="controller-value" data-control="dpad-down">-</td></tr>
+                            <tr id="mapping-dpad-left" class="controller-mapping-row"><td><b>D-Pad Left</b></td><td>Raise camera</td><td class="controller-value" data-control="dpad-left">-</td></tr>
+                            <tr id="mapping-dpad-right" class="controller-mapping-row"><td><b>D-Pad Right</b></td><td>Lower camera</td><td class="controller-value" data-control="dpad-right">-</td></tr>
+                            <tr id="mapping-button-y" class="controller-mapping-row"><td><b>Y Button</b></td><td>Belt Speed</td><td class="controller-value" data-control="button-y">-</td></tr>
+                            <tr id="mapping-button-x" class="controller-mapping-row"><td><b>X Button</b></td><td>Deposit</td><td class="controller-value" data-control="button-x">-</td></tr>
+                            <tr id="mapping-button-a" class="controller-mapping-row"><td><b>A Button</b></td><td>Vibrate</td><td class="controller-value" data-control="button-a">-</td></tr>
+                            <tr id="mapping-button-b" class="controller-mapping-row"><td><b>B Button</b></td><td>Reverse Belt</td><td class="controller-value" data-control="button-b">-</td></tr>
+                            <tr id="mapping-left-stick-x" class="controller-mapping-row"><td><b>Left Joystick (X)</b></td><td>Move Left/Right</td><td class="controller-value" data-control="left-stick-x">-</td></tr>
+                            <tr id="mapping-left-stick-y" class="controller-mapping-row"><td><b>Left Joystick (Y)</b></td><td>Move Forward/Back</td><td class="controller-value" data-control="left-stick-y">-</td></tr>
+                            <tr id="mapping-right-stick-x" class="controller-mapping-row"><td><b>Right Joystick (X)</b></td><td>Camera Pan</td><td class="controller-value" data-control="right-stick-x">-</td></tr>
+                            <tr id="mapping-right-stick-y" class="controller-mapping-row"><td><b>Right Joystick (Y)</b></td><td>Camera Tilt</td><td class="controller-value" data-control="right-stick-y">-</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

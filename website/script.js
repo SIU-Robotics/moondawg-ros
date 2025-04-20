@@ -248,25 +248,6 @@ function updateI2CCommandHistory(dataStr) {
     }
 }
 
-// Add event listener for refresh button
-document.addEventListener("DOMContentLoaded", function () {
-    const refreshButton = document.getElementById("refresh-i2c-history");
-    if (refreshButton) {
-        refreshButton.addEventListener("click", function () {
-            document.getElementById("i2c_command_history").innerHTML = `
-                <div class="text-center">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Refreshing...</p>
-                </div>
-            `;
-
-            // Request fresh data - this will happen automatically on the next publish cycle
-        });
-    }
-});
-
 // Connect gamepad
 window.addEventListener("gamepadconnected", function (e) {
     console.log("Gamepad connected!");
@@ -308,6 +289,162 @@ function updateControllerHighlights(elements) {
             row.classList.add("table-primary");
         }
     });
+}
+
+// Function to update controller value displays in the mapping table
+function updateControllerValues(gamepad) {
+    // Update button values
+    if (gamepad.buttons) {
+        // Standard button mapping
+        updateControlValueElement(
+            "button-a",
+            gamepad.buttons[0].value > 0
+                ? Math.round(gamepad.buttons[0].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-b",
+            gamepad.buttons[1].value > 0
+                ? Math.round(gamepad.buttons[1].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-x",
+            gamepad.buttons[2].value > 0
+                ? Math.round(gamepad.buttons[2].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-y",
+            gamepad.buttons[3].value > 0
+                ? Math.round(gamepad.buttons[3].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-lb",
+            gamepad.buttons[4].value > 0
+                ? Math.round(gamepad.buttons[4].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rb",
+            gamepad.buttons[5].value > 0
+                ? Math.round(gamepad.buttons[5].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-lt",
+            gamepad.buttons[6].value > 0
+                ? Math.round(gamepad.buttons[6].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rt",
+            gamepad.buttons[7].value > 0
+                ? Math.round(gamepad.buttons[7].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-back",
+            gamepad.buttons[8].value > 0
+                ? Math.round(gamepad.buttons[8].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-start",
+            gamepad.buttons[9].value > 0
+                ? Math.round(gamepad.buttons[9].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-ls",
+            gamepad.buttons[10].value > 0
+                ? Math.round(gamepad.buttons[10].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rs",
+            gamepad.buttons[11].value > 0
+                ? Math.round(gamepad.buttons[11].value * 100)
+                : 0
+        );
+    }
+
+    // Update axis values
+    if (gamepad.axes) {
+        updateControlValueElement(
+            "left-stick-x",
+            Math.round(gamepad.axes[0] * 100)
+        );
+        updateControlValueElement(
+            "left-stick-y",
+            Math.round(gamepad.axes[1] * 100)
+        );
+        updateControlValueElement(
+            "right-stick-x",
+            Math.round(gamepad.axes[2] * 100)
+        );
+        updateControlValueElement(
+            "right-stick-y",
+            Math.round(gamepad.axes[3] * 100)
+        );
+
+        // DPad values
+        if (Math.abs(gamepad.axes[6]) > 0) {
+            if (gamepad.axes[6] < 0) {
+                updateControlValueElement(
+                    "dpad-left",
+                    Math.abs(Math.round(gamepad.axes[6] * 100))
+                );
+                updateControlValueElement("dpad-right", 0);
+            } else {
+                updateControlValueElement(
+                    "dpad-right",
+                    Math.round(gamepad.axes[6] * 100)
+                );
+                updateControlValueElement("dpad-left", 0);
+            }
+        } else {
+            updateControlValueElement("dpad-left", 0);
+            updateControlValueElement("dpad-right", 0);
+        }
+
+        if (Math.abs(gamepad.axes[7]) > 0) {
+            if (gamepad.axes[7] < 0) {
+                updateControlValueElement(
+                    "dpad-up",
+                    Math.abs(Math.round(gamepad.axes[7] * 100))
+                );
+                updateControlValueElement("dpad-down", 0);
+            } else {
+                updateControlValueElement(
+                    "dpad-down",
+                    Math.round(gamepad.axes[7] * 100)
+                );
+                updateControlValueElement("dpad-up", 0);
+            }
+        } else {
+            updateControlValueElement("dpad-up", 0);
+            updateControlValueElement("dpad-down", 0);
+        }
+    }
+}
+
+// Helper function to update an individual control value in the mapping table
+function updateControlValueElement(controlId, value) {
+    const valueElement = document.querySelector(
+        `.controller-value[data-control="${controlId}"]`
+    );
+    if (valueElement) {
+        const absValue = Math.abs(value);
+        if (absValue === 0) {
+            valueElement.textContent = "-";
+            valueElement.classList.remove("text-primary", "fw-bold");
+        } else {
+            valueElement.textContent = value;
+            valueElement.classList.add("text-primary", "fw-bold");
+        }
+    }
 }
 
 // Function to be called every time the controlled is read from
@@ -364,6 +501,9 @@ function readControllerData() {
 
     // Update highlights in the UI
     updateControllerHighlights(activeControllerElements);
+
+    // Update value displays in the mapping table
+    updateControllerValues(gamepad);
 
     var axisData = new ROSLIB.Message({
         data: gamepad_axis,

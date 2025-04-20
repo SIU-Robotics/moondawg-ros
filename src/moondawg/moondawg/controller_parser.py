@@ -18,10 +18,20 @@ MOTOR_FULL_FORWARD = 180
 MOTOR_FULL_REVERSE = 0
 CAMERA_CENTER = 90
 
+# Deposition command constants
+AUGER = 1
+VIBRATOR = 2
+
+# Excavation command constants
+BELT_SPEED = 1
+BELT_POSITION = 2
+
 # Direction constants
 FORWARD = 1
 RIGHT = 1
 LEFT = 0
+UP = 180
+DOWN = 0
 
 # I2C addresses - consolidated into a single place for easy maintenance
 class I2CAddress:
@@ -250,7 +260,7 @@ class ControllerParser(Node):
                 # Stop belt
                 self._stop_belt()
                 # Reset belt position
-                self._move_belt_position(1, RIGHT)
+                self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, UP])
             return
             
         # Initialize the timer if this is the start of the sequence
@@ -266,13 +276,13 @@ class ControllerParser(Node):
         
         if elapsed_seconds < 3:
             # Phase 1: Lower belt
-            self._move_belt_position(1, LEFT)
+            self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, DOWN])
         elif 3 <= elapsed_seconds < 5:
             # Phase 2: Start belt
             self._start_belt()
         elif 17 <= elapsed_seconds < 19:
             # Phase 3: Raise belt
-            self._move_belt_position(1, RIGHT)
+            self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, UP])
         elif elapsed_seconds >= 30:
             # Phase 4: Complete sequence
             self.digging = False
@@ -523,18 +533,18 @@ class ControllerParser(Node):
         if buttons["button_b"] != self.button_b:
             self.button_b = buttons["button_b"]
             if self.button_b:
-                self.send_i2c(I2CAddress.EXCAVATION, BELT_REVERSE_SPEED)
+                self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, BELT_REVERSE_SPEED])
             else:
-                self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
+                self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, MOTOR_STOPPED])
 
         # D-pad up => belt position right
         if buttons["dpad_up"] != self.dpad_up:
-            self._move_belt_position(buttons["dpad_up"], RIGHT)
+            self._set_belt_position(UP)
             self.dpad_up = buttons["dpad_up"]
         
         # D-pad down => belt position left
         if buttons["dpad_down"] != self.dpad_down:
-            self._move_belt_position(buttons["dpad_down"], LEFT)
+            self._set_belt_position(DOWN)
             self.dpad_down = buttons["dpad_down"]
 
         # Left bumper => belt forward (with current speed index)
@@ -542,9 +552,9 @@ class ControllerParser(Node):
             self.lbutton = buttons["lbutton"]
             if self.lbutton:
                 speed = self.belt_speeds[self.belt_speed_index]
-                self.send_i2c(I2CAddress.EXCAVATION, speed)
+                self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, speed])
             else:
-                self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
+                self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, MOTOR_STOPPED])
 
     def _process_movement_controls(self, buttons: Dict[str, Any]) -> None:
         """
@@ -627,16 +637,25 @@ class ControllerParser(Node):
             "rstick_y": data[3]
         }
 
-    def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
+    def _set_belt_position(self, position: int) -> None:
         """
-        Parse button data from controller.
+        Set the belt position (up or down).
         
         Args:
-            data: List of button values from controller
-            
-        Returns:
-            Dictionary of named button values
+            position: The position to set (UP or DOWN)
         """
+        self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, position])
+
+    def _set_belt_speed(self, speed: int) -> None:
+        """
+        Set the belt speed.
+        
+        Args:
+            speed: The speed to set (0-180, 90 is stopped)
+        """
+        self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, speed])
+
+    def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
         return {
             "button_a": data[0]/100,
             "button_b": data[1]/100,
@@ -694,19 +713,6 @@ class ControllerParser(Node):
         """Stop all wheel motors."""
         self._set_wheel_speeds(90, 90, 90, 90)
 
-    def _move_belt_position(self, enabled: bool, direction: int) -> None:
-        """
-        Move the belt position.
-        
-        Args:
-            enabled: Whether movement is enabled
-            direction: Direction of movement (1 for right, 0 for left)
-        """
-        if enabled:
-            self.send_i2c(I2CAddress.EXCAVATION, direction)
-        else:
-            self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
-
     def _start_belt(self) -> None:
         """Start the belt with the current speed setting."""
         speed = self.belt_speeds[self.belt_speed_index]
@@ -726,7 +732,7 @@ class ControllerParser(Node):
         self._stop_belt()
 
         # Reset belt position
-        self._move_belt_position(0, RIGHT)
+        self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, MOTOR_STOPPED])
 
         # Stop deposit/auger
         self.send_i2c(I2CAddress.DEPOSITION, MOTOR_STOPPED)
