@@ -764,7 +764,7 @@ class ControllerParser(Node):
             val, channel = data
             msg_str = f"{hex(address)}:{val},{channel}"
             # Store the command in history with a user-friendly description
-            self._update_i2c_history(address, f"Value: {val}, Channel: {channel}")
+            self._update_i2c_history(address, f"{val},{channel}")
         elif isinstance(data, (tuple, list)):
             # Format a list of values
             msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
