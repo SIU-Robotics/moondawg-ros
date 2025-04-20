@@ -209,7 +209,8 @@ class ControllerParser(Node):
         """Process joystick axis data from the controller."""
         try:
             axis = self._parse_axis(request.data)
-            self.four_wheel_steering_handler(axis['lstick_x'], axis['lstick_y'])
+            if self.ltrigger == 0 and self.rtrigger == 0:
+                self.four_wheel_steering_handler(axis['lstick_x'], axis['lstick_y'])
         except Exception as e:
             self.set_diagnostic_status(
                 DiagnosticStatus.ERROR, 
