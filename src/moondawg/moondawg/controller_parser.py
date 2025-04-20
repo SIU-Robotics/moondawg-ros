@@ -414,11 +414,7 @@ class ControllerParser(Node):
             y_f: Normalized Y-axis (-1.0 to 1.0)
             magnitude: Magnitude of joystick deflection (0.0 to 1.0)
         """
-        # For small Y movement but larger X movement, do a zero-point turn
-        if abs(x_f) > abs(y_f) and abs(x_f) > 0.3:
-            self._handle_point_turn(x_f)
-        else:
-            self._handle_differential_steering(x_f, y_f, magnitude)
+        self._handle_point_turn(x_f)
 
     def _handle_point_turn(self, x_f: float) -> None:
         """
@@ -430,7 +426,7 @@ class ControllerParser(Node):
         # Calculate angle based on joystick position
         # As x_f approaches 1 or -1, get closer to 45/135
         # For smoother control, map x_f to a range between center and max turn angle
-        turn_angle = abs(x_f) * 90  # Maps 0-1 to 0-90 degree range
+        turn_angle = abs(x_f) * 75  # Maps 0-1 to 0-90 degree range
         
         # Calculate the wheel angles based on turn direction
         center_angle = 90
