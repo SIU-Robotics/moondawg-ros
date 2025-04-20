@@ -437,7 +437,7 @@ class ControllerParser(Node):
         inner_angle = int(center_angle - turn_angle)  # 90-turn_angle (45 at full deflection)
         outer_angle = int(center_angle + turn_angle)  # 90+turn_angle (135 at full deflection)
         
-        if x_f > 0:  # Clockwise rotation
+        if x_f < 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
             self._set_steering_angle(outer_angle, 1)  # Front left -> right
             self._set_steering_angle(outer_angle, 2)  # Front right -> right  
@@ -480,7 +480,7 @@ class ControllerParser(Node):
         self._center_wheels()
         
         # Calculate speed based on y_axis (positive = forward, negative = backward)
-        base_speed = 90 + int(90 * y_f)
+        base_speed = 90 - int(90 * y_f)
         base_speed = clamp(base_speed, 0, 180)
         
         # Apply differential steering for turning while moving
