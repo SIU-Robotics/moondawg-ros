@@ -430,7 +430,7 @@ class ControllerParser(Node):
         # Calculate angle based on joystick position
         # As x_f approaches 1 or -1, get closer to 45/135
         # For smoother control, map x_f to a range between center and max turn angle
-        turn_angle = abs(x_f) * 45  # Maps 0-1 to 0-45 degree range
+        turn_angle = abs(x_f) * 90  # Maps 0-1 to 0-90 degree range
         
         # Calculate the wheel angles based on turn direction
         center_angle = 90
@@ -442,7 +442,7 @@ class ControllerParser(Node):
         wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
         wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
-        if x_f < 0:  # Clockwise rotation
+        if x_f > 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
             self._set_steering_angle(outer_angle, 1)  # Front left -> right
             self._set_steering_angle(outer_angle, 2)  # Front right -> right  
@@ -451,9 +451,7 @@ class ControllerParser(Node):
             
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels forward, rear wheels reverse
-            self._set_wheel_speeds(wheel_speed, wheel_speed, 
-                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED), 
-                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED))
+            self._set_wheel_speeds(wheel_speed, wheel_speed, wheel_speed, wheel_speed)
             
         else:  # Counter-clockwise rotation
             # Set wheel angles for counter-clockwise rotation
@@ -464,9 +462,7 @@ class ControllerParser(Node):
             
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels reverse, rear wheels forward
-            self._set_wheel_speeds(MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED),
-                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED),
-                                  wheel_speed, wheel_speed)
+            self._set_wheel_speeds(wheel_speed, wheel_speed, wheel_speed, wheel_speed)
 
     def _handle_differential_steering(self, x_f: float, y_f: float, magnitude: float) -> None:
         """
