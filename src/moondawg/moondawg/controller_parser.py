@@ -534,15 +534,21 @@ class ControllerParser(Node):
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
 
-        # D-pad up => belt position right
+        # D-pad up => belt position up
         if buttons["dpad_up"] != self.dpad_up:
-            self._set_belt_position(UP)
             self.dpad_up = buttons["dpad_up"]
+            if self.dpad_up:
+                self._set_belt_position(UP)
+            else:
+                self._set_belt_position(MOTOR_STOPPED)
         
-        # D-pad down => belt position left
+        # D-pad down => belt position down
         if buttons["dpad_down"] != self.dpad_down:
-            self._set_belt_position(DOWN)
             self.dpad_down = buttons["dpad_down"]
+            if self.dpad_down:
+                self._set_belt_position(DOWN)
+            else:
+                self._set_belt_position(MOTOR_STOPPED)
 
         # Left bumper => belt forward (with current speed index)
         if buttons["lbutton"] != self.lbutton:
@@ -607,13 +613,21 @@ class ControllerParser(Node):
         Args:
             buttons: Dictionary of button states
         """
-        # X button => deposit forward/back
+        # X button => deposit with auger
         if buttons["button_x"] != self.button_x:
             self.button_x = buttons["button_x"]
             if self.button_x:
                 self._set_auger_deposition(MOTOR_FULL_FORWARD)
             else:
                 self._set_auger_deposition(MOTOR_STOPPED)
+
+        # A button => vibrator on/off
+        if buttons["button_a"] != self.button_a:
+            self.button_a = buttons["button_a"]
+            if self.button_a:
+                self._set_vibrator(MOTOR_FULL_FORWARD)
+            else:
+                self._set_vibrator(MOTOR_STOPPED)
 
     # ------------------- Helper methods -------------------
 
@@ -660,6 +674,15 @@ class ControllerParser(Node):
             direction: The direction to set (FORWARD, MOTOR_STOPPED, etc.)
         """
         self.send_i2c(I2CAddress.DEPOSITION, [AUGER, direction])
+
+    def _set_vibrator(self, state: int) -> None:
+        """
+        Set the vibrator state.
+        
+        Args:
+            state: The state to set (ON, OFF)
+        """
+        self.send_i2c(I2CAddress.DEPOSITION, [VIBRATOR, state])
 
     def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
         return {
@@ -764,10 +787,10 @@ class ControllerParser(Node):
         """
         # Format the message based on data type
         if isinstance(data, (tuple, list)) and len(data) == 2:
-            val, channel = data
-            msg_str = f"{hex(address)}:{val},{channel}"
+            device, value = data
+            msg_str = f"{hex(address)}:{device},{value}"
             # Store the command in history with a user-friendly description
-            self._update_i2c_history(address, f"{val},{channel}")
+            self._update_i2c_history(address, f"{device},{value}")
         elif isinstance(data, (tuple, list)):
             # Format a list of values
             msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
@@ -837,7 +860,7 @@ class ControllerParser(Node):
             I2CAddress.REAR_RIGHT: "Rear Right Motor",
             I2CAddress.STEERING_SERVO: "Steering Servo",
             I2CAddress.EXCAVATION: "Excavation System",
-            I2CAddress.DEPOSITION: "Deposition System"
+            I2CAddress.DEPOSITION: "Deposition System",
         }
         
         return device_names.get(address, f"Unknown Device ({hex(address)})")
