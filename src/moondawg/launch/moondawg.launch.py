@@ -109,21 +109,21 @@ def generate_launch_description():
             ]
         ),
         
-        # Optional: Serial communication node (if needed alongside I2C)
-        Node(
-            package='moondawg',
-            executable='serial_node',
-            name='serial_node',
-            output='screen',
-            parameters=[
-                {'port': serial_port},
-                {'baudrate': 9600},
-                {'timeout': 1.0},
-                {'write_timeout': 1.0},
-                {'retry_interval': 5.0},
-                {'debug': debug_mode}
-            ]
-        ),
+        # # Optional: Serial communication node (if needed alongside I2C)
+        # Node(
+        #     package='moondawg',
+        #     executable='serial_node',
+        #     name='serial_node',
+        #     output='screen',
+        #     parameters=[
+        #         {'port': serial_port},
+        #         {'baudrate': 9600},
+        #         {'timeout': 1.0},
+        #         {'write_timeout': 1.0},
+        #         {'retry_interval': 5.0},
+        #         {'debug': debug_mode}
+        #     ]
+        # ),
     ]
     
     # Create and return launch description

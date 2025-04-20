@@ -1,10 +1,10 @@
 import time
 from typing import Optional, Dict, Any, List, Tuple
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import Node
 from std_msgs.msg import String
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
-from smbus2 import SMBus, SMBusError
+from smbus2 import SMBus
 
 class I2CNode(Node):
     """
@@ -198,7 +198,7 @@ class I2CNode(Node):
             self._bus.write_byte(address, value)
             self.get_logger().debug(f"Wrote byte {value} to device {hex(address)}")
         except Exception as e:
-            self._record_error(address, f"Error writing byte to {hex(address)}: {str(e)}")
+            self._record_error(address, f"Error writing byte {value} to {hex(address)}: {str(e)}")
 
     def _write_i2c_block(self, address: int, values: List[int]) -> None:
         """
@@ -231,7 +231,7 @@ class I2CNode(Node):
                 self.get_logger().debug(f"Wrote byte {values[0]} to device {hex(address)}")
                 
         except Exception as e:
-            self._record_error(address, f"Error writing block to {hex(address)}: {str(e)}")
+            self._record_error(address, f"Error writing block {values} to {hex(address)}: {str(e)}")
 
     def _record_error(self, address: int, message: str) -> None:
         """
