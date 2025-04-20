@@ -17,25 +17,19 @@ echo "Installing nginx web server..."
 apt-get update
 apt-get install -y nginx
 
-echo "Creating symbolic link from /var/www/html to website directory..."
-
+# Link /var/www/html to the website directory
 rm -rf /var/www/html
+mkdir -p /var/www/html
+mount --bind "$WEBSITE_DIR" /var/www/html
 
-# Create the symbolic link
-ln -sf "$WEBSITE_DIR" /var/www/html
+echo "$WEBSITE_DIR /var/www/html none bind 0 0" >> /etc/fstab
 
 # Ensure nginx can access the website directory
 chown -R www-data:www-data "$WEBSITE_DIR"
 
-# Test nginx configuration
-nginx -t
-
-# Restart nginx to apply changes
-systemctl restart nginx
 systemctl enable nginx
 
 # Get the local IP address
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
-echo "Website installation complete!"
-echo "The MoonDawg ROS website is now available at http://$LOCAL_IP/"
+echo "The website should be available at http://$LOCAL_IP/"
