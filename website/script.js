@@ -77,16 +77,10 @@ var i2cDiagTopic = new ROSLIB.Topic({
     messageType: "diagnostic_msgs/DiagnosticStatus",
 });
 
-// New topics for I2C command history
+// Topic for I2C command history from controller_parser only
 var controllerI2CHistoryTopic = new ROSLIB.Topic({
     ros: ros,
     name: "/controller_parser/i2c_history",
-    messageType: "std_msgs/String",
-});
-
-var i2cHistoryTopic = new ROSLIB.Topic({
-    ros: ros,
-    name: "/i2c_node/command_history",
     messageType: "std_msgs/String",
 });
 
@@ -202,13 +196,8 @@ i2cDiagTopic.subscribe(function (message) {
     document.getElementById("i2c_diag").innerHTML = message.message;
 });
 
-// Subscribe to I2C command history topics
+// Subscribe to I2C command history topic from controller_parser only
 controllerI2CHistoryTopic.subscribe(function (message) {
-    updateI2CCommandHistory(message.data);
-});
-
-i2cHistoryTopic.subscribe(function (message) {
-    // We can combine data from both I2C history topics if needed
     updateI2CCommandHistory(message.data);
 });
 

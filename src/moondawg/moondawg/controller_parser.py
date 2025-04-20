@@ -110,6 +110,9 @@ class ControllerParser(Node):
         # Track last I2C commands sent to each address
         self.i2c_command_history = {}
         
+        # Track steering positions for condensed display
+        self.steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}  # Default center positions
+        
         # Diagnostic status setup
         self.diagnostic_status = DiagnosticStatus(
             name=self.get_name(), 
@@ -784,6 +787,22 @@ class ControllerParser(Node):
             address: I2C address
             data_str: String representation of the data sent
         """
+        # Handle steering servos specially - condense them
+        if address == I2CAddress.STEERING_SERVO:
+            try:
+                # Parse the data for servo commands
+                if "," in data_str:
+                    value, channel = map(int, data_str.split(","))
+                    # Update the stored position for this channel
+                    self.steering_positions[channel] = value
+                
+                # We'll handle publishing of steering in the publish_i2c_history method
+                # Immediately publish to show instant updates
+                self.publish_i2c_history()
+                return
+            except Exception as e:
+                self.get_logger().error(f"Error parsing servo data: {str(e)}")
+        
         # Get human-readable name for the address
         device_name = self._get_device_name(address)
         
@@ -794,7 +813,10 @@ class ControllerParser(Node):
             'last_command': data_str,
             'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
         }
-    
+        
+        # Immediately publish to show instant updates
+        self.publish_i2c_history()
+
     def _get_device_name(self, address: int) -> str:
         """
         Get a human-readable name for an I2C address.
@@ -821,11 +843,24 @@ class ControllerParser(Node):
         """
         Publish the I2C command history as a JSON string.
         """
-        if not self.i2c_command_history:
+        if not self.i2c_command_history and all(pos == 90 for pos in self.steering_positions.values()):
             return
             
+        # Create a copy of the history data to work with
+        history_data = dict(self.i2c_command_history)
+        
+        # Add condensed steering servo information
+        steering_data = ", ".join([f"CH{ch}: {pos}°" for ch, pos in self.steering_positions.items()])
+        
+        history_data[I2CAddress.STEERING_SERVO] = {
+            'device_name': "Steering Servos",
+            'address': hex(I2CAddress.STEERING_SERVO),
+            'last_command': steering_data,
+            'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        }
+            
         # Convert the history to a JSON string
-        history_json = json.dumps(self.i2c_command_history)
+        history_json = json.dumps(history_data)
         
         # Publish the history
         self.i2c_history_pub.publish(String(data=history_json))
