@@ -589,22 +589,12 @@ class ControllerParser(Node):
         # Right trigger => forward
         if buttons['rtrigger'] != self.rtrigger:
             self.rtrigger = buttons['rtrigger']
-            if self.rtrigger:
-                self.four_wheel_steering_handler(0, -100) 
-            else:
-                # Only stop if this trigger was controlling movement
-                if self.ltrigger == 0:
-                    self.stop_all()
+            self.four_wheel_steering_handler(0, self.rtrigger)
 
         # Left trigger => reverse
         if buttons['ltrigger'] != self.ltrigger:
             self.ltrigger = buttons['ltrigger']
-            if self.ltrigger:
-                self.four_wheel_steering_handler(0, 100)
-            else:
-                # Only stop if this trigger was controlling movement
-                if self.rtrigger == 0:
-                    self.stop_all()
+            self.four_wheel_steering_handler(0, self.ltrigger*-1)
 
     def _process_misc_controls(self, buttons: Dict[str, Any]) -> None:
         """
