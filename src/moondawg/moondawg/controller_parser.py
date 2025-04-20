@@ -14,8 +14,8 @@ from typing import Tuple, Union, Dict, List, Any
 # Motor speed constants
 BELT_REVERSE_SPEED = 30
 MOTOR_STOPPED = 90
-MOTOR_FULL_FORWARD = 180
-MOTOR_FULL_REVERSE = 0
+MOTOR_FULL_FORWARD = 130
+MOTOR_FULL_REVERSE = 50
 CAMERA_CENTER = 90
 
 # Deposition command constants
