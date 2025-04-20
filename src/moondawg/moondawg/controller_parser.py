@@ -437,6 +437,11 @@ class ControllerParser(Node):
         inner_angle = int(center_angle - turn_angle)  # 90-turn_angle (45 at full deflection)
         outer_angle = int(center_angle + turn_angle)  # 90+turn_angle (135 at full deflection)
         
+        # Set wheel speed based on joystick deflection
+        # All wheels get the same speed, just different directions
+        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
+        wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+        
         if x_f < 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
             self._set_steering_angle(outer_angle, 1)  # Front left -> right
@@ -444,13 +449,11 @@ class ControllerParser(Node):
             self._set_steering_angle(inner_angle, 3)  # Rear left -> left
             self._set_steering_angle(inner_angle, 4)  # Rear right -> left
             
-            # Set speeds for rotation - front wheels forward, rear wheels reverse
-            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
-            rev_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(x_f))
-            speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            rev_speed = clamp(rev_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            
-            self._set_wheel_speeds(speed, speed, rev_speed, rev_speed)
+            # In rotate mode, all wheels have the same speed magnitude
+            # Front wheels forward, rear wheels reverse
+            self._set_wheel_speeds(wheel_speed, wheel_speed, 
+                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED), 
+                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED))
             
         else:  # Counter-clockwise rotation
             # Set wheel angles for counter-clockwise rotation
@@ -459,13 +462,11 @@ class ControllerParser(Node):
             self._set_steering_angle(outer_angle, 3)  # Rear left -> right
             self._set_steering_angle(outer_angle, 4)  # Rear right -> right
             
-            # Set speeds for rotation - front wheels reverse, rear wheels forward
-            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
-            rev_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(x_f))
-            speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            rev_speed = clamp(rev_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            
-            self._set_wheel_speeds(rev_speed, rev_speed, speed, speed)
+            # In rotate mode, all wheels have the same speed magnitude
+            # Front wheels reverse, rear wheels forward
+            self._set_wheel_speeds(MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED),
+                                  MOTOR_STOPPED - (wheel_speed - MOTOR_STOPPED),
+                                  wheel_speed, wheel_speed)
 
     def _handle_differential_steering(self, x_f: float, y_f: float, magnitude: float) -> None:
         """
