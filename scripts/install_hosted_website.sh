@@ -3,9 +3,16 @@
 set -e
 
 # Check if script is run as root
+
 if [ "$EUID" -ne 0 ]; then
     echo "Please run as root (use sudo)"
     exit 1
+fi
+
+# Check if already installed by seeing if website is already mounted
+if mountpoint -q /var/www/html; then
+    echo "Website appears to be already mounted at /var/www/html. Exiting."
+    exit 0
 fi
 
 # Get the directory of this script
