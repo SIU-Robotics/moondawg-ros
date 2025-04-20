@@ -1,5 +1,5 @@
 // Parameters - change these to match the Pi
-var ip = "131.230.197.84"; // IP of the Pi
+var ip = "10.0.0.5"; // IP of the Pi
 var port = "9090"; // Port of webserver node
 
 var gamepad_axis_prev = "null";
@@ -75,6 +75,19 @@ var i2cDiagTopic = new ROSLIB.Topic({
     ros: ros,
     name: "/i2c_node/diag",
     messageType: "diagnostic_msgs/DiagnosticStatus",
+});
+
+// New topics for I2C command history
+var controllerI2CHistoryTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/controller_parser/i2c_history",
+    messageType: "std_msgs/String",
+});
+
+var i2cHistoryTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/i2c_node/command_history",
+    messageType: "std_msgs/String",
 });
 
 // Parameters
@@ -189,6 +202,82 @@ i2cDiagTopic.subscribe(function (message) {
     document.getElementById("i2c_diag").innerHTML = message.message;
 });
 
+// Subscribe to I2C command history topics
+controllerI2CHistoryTopic.subscribe(function (message) {
+    updateI2CCommandHistory(message.data);
+});
+
+i2cHistoryTopic.subscribe(function (message) {
+    // We can combine data from both I2C history topics if needed
+    updateI2CCommandHistory(message.data);
+});
+
+// Function to update I2C command history display
+function updateI2CCommandHistory(dataStr) {
+    try {
+        const data = JSON.parse(dataStr);
+        const historyPanel = document.getElementById("i2c_command_history");
+
+        // Clear the panel if it contains the waiting message
+        if (historyPanel.querySelector(".text-muted")) {
+            historyPanel.innerHTML = "";
+        }
+
+        // Sort devices by address to maintain consistent order
+        const addresses = Object.keys(data).sort(
+            (a, b) => parseInt(a) - parseInt(b)
+        );
+
+        // Generate HTML for each device
+        let htmlContent = "";
+
+        addresses.forEach((address) => {
+            const device = data[address];
+            const deviceName = device.device_name || "Unknown Device";
+            const lastCommand = device.last_command || "";
+            const timestamp = device.timestamp || "";
+
+            htmlContent += `
+            <div class="i2c-item">
+                <div class="d-flex justify-content-between">
+                    <strong>${deviceName}</strong>
+                    <small class="text-muted">${timestamp}</small>
+                </div>
+                <div>
+                    <span class="badge bg-secondary">${device.address}</span>
+                    <span class="ms-2">${lastCommand}</span>
+                </div>
+            </div>`;
+        });
+
+        // Update the panel content if we have new data
+        if (htmlContent) {
+            historyPanel.innerHTML = htmlContent;
+        }
+    } catch (e) {
+        console.error("Error parsing I2C history data:", e);
+    }
+}
+
+// Add event listener for refresh button
+document.addEventListener("DOMContentLoaded", function () {
+    const refreshButton = document.getElementById("refresh-i2c-history");
+    if (refreshButton) {
+        refreshButton.addEventListener("click", function () {
+            document.getElementById("i2c_command_history").innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Refreshing...</p>
+                </div>
+            `;
+
+            // Request fresh data - this will happen automatically on the next publish cycle
+        });
+    }
+});
+
 // Connect gamepad
 window.addEventListener("gamepadconnected", function (e) {
     console.log("Gamepad connected!");
@@ -234,7 +323,7 @@ function updateControllerHighlights(elements) {
 
 // Function to be called every time the controlled is read from
 function readControllerData() {
-    var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
+    var gamepad = navigator.getGamepads()[1]; // Assuming the first connected gamepad
 
     if (gamepad == undefined) {
         return;

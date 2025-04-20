@@ -3,11 +3,12 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int8MultiArray, String, Byte
 from sensor_msgs.msg import Image
-from diagnostic_msgs.msg import DiagnosticStatus
+from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from cv_bridge import CvBridge
 import cv2
 import base64
 import datetime
+import json
 from typing import Tuple, Union, Dict, List, Any
 
 # Motor speed constants
@@ -106,6 +107,9 @@ class ControllerParser(Node):
         # Bridge for camera processing
         self.br = CvBridge()
         
+        # Track last I2C commands sent to each address
+        self.i2c_command_history = {}
+        
         # Diagnostic status setup
         self.diagnostic_status = DiagnosticStatus(
             name=self.get_name(), 
@@ -141,6 +145,13 @@ class ControllerParser(Node):
             10
         )
         
+        # New publisher for I2C command history
+        self.i2c_history_pub = self.create_publisher(
+            String,
+            '/controller_parser/i2c_history',
+            10
+        )
+        
         # Subscribers
         self.connection_topic = self.create_subscription(
             Byte, 
@@ -170,6 +181,9 @@ class ControllerParser(Node):
         # Timers
         self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
         self.auto_timer = self.create_timer(0.5, self.auto_callback)
+        
+        # Add a timer to publish I2C command history periodically
+        self.i2c_history_timer = self.create_timer(0.5, self.publish_i2c_history)
         
         # Set initial diagnostic status
         self.set_diagnostic_status(DiagnosticStatus.OK, "Controller parser ready")
@@ -746,16 +760,75 @@ class ControllerParser(Node):
         if isinstance(data, (tuple, list)) and len(data) == 2:
             val, channel = data
             msg_str = f"{hex(address)}:{val},{channel}"
+            # Store the command in history with a user-friendly description
+            self._update_i2c_history(address, f"Value: {val}, Channel: {channel}")
         elif isinstance(data, (tuple, list)):
             # Format a list of values
             msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
+            # Store the command in history
+            self._update_i2c_history(address, ",".join(str(d) for d in data))
         else:
             # Handle integer or other simple values
             msg_str = f"{hex(address)}:{data}"
+            # Store the command in history
+            self._update_i2c_history(address, str(data))
             
         # Publish the formatted message
         self.i2c_publisher.publish(String(data=msg_str))
 
+    def _update_i2c_history(self, address: int, data_str: str) -> None:
+        """
+        Update the I2C command history for an address.
+        
+        Args:
+            address: I2C address
+            data_str: String representation of the data sent
+        """
+        # Get human-readable name for the address
+        device_name = self._get_device_name(address)
+        
+        # Store the command in the history with timestamp
+        self.i2c_command_history[address] = {
+            'device_name': device_name,
+            'address': hex(address),
+            'last_command': data_str,
+            'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        }
+    
+    def _get_device_name(self, address: int) -> str:
+        """
+        Get a human-readable name for an I2C address.
+        
+        Args:
+            address: I2C address
+            
+        Returns:
+            String name of the device
+        """
+        device_names = {
+            I2CAddress.FRONT_LEFT: "Front Left Motor",
+            I2CAddress.FRONT_RIGHT: "Front Right Motor",
+            I2CAddress.REAR_LEFT: "Rear Left Motor",
+            I2CAddress.REAR_RIGHT: "Rear Right Motor",
+            I2CAddress.STEERING_SERVO: "Steering Servo",
+            I2CAddress.EXCAVATION: "Excavation Belt",
+            I2CAddress.DEPOSITION: "Deposition System"
+        }
+        
+        return device_names.get(address, f"Unknown Device ({hex(address)})")
+    
+    def publish_i2c_history(self) -> None:
+        """
+        Publish the I2C command history as a JSON string.
+        """
+        if not self.i2c_command_history:
+            return
+            
+        # Convert the history to a JSON string
+        history_json = json.dumps(self.i2c_command_history)
+        
+        # Publish the history
+        self.i2c_history_pub.publish(String(data=history_json))
 
 def main(args=None):
     """Main entry point for the node."""

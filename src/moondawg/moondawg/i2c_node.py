@@ -5,6 +5,7 @@ from rclpy.lifecycle import Node
 from std_msgs.msg import String
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from smbus2 import SMBus
+import json
 
 class I2CNode(Node):
     """
@@ -53,6 +54,13 @@ class I2CNode(Node):
             10
         )
         
+        # Add a new publisher for command history
+        self.command_history_pub = self.create_publisher(
+            String,
+            '/i2c_node/command_history',
+            10
+        )
+        
         # Command subscriber
         self.create_subscription(
             String, 
@@ -64,6 +72,9 @@ class I2CNode(Node):
         # Heartbeat timer
         heartbeat_interval = self.get_parameter('heartbeat_interval').get_parameter_value().double_value
         self.create_timer(heartbeat_interval, self._heartbeat)
+        
+        # Add a timer to publish command history periodically
+        self.create_timer(0.5, self._publish_command_history)
 
     def _initialize_i2c_bus(self) -> None:
         """Initialize the I2C bus connection."""
@@ -143,7 +154,8 @@ class I2CNode(Node):
                     'write_count': 0,
                     'error_count': 0,
                     'last_command': '',
-                    'last_time': 0
+                    'last_time': 0,
+                    'human_readable': self._get_device_name(address)
                 }
                 
             self._device_stats[address]['write_count'] += 1
@@ -335,6 +347,53 @@ class I2CNode(Node):
             
         # Publish diagnostic status
         self.diag_pub.publish(self.diag_status)
+        
+        # Also publish command history with the heartbeat
+        self._publish_command_history()
+
+    def _publish_command_history(self) -> None:
+        """Publish I2C command history periodically."""
+        if not self._device_stats:
+            return
+            
+        # Create a JSON representation of the command history
+        history_data = {}
+        
+        for addr, stats in self._device_stats.items():
+            history_data[addr] = {
+                'address': hex(addr),
+                'device_name': stats['human_readable'],
+                'last_command': stats['last_command'],
+                'write_count': stats['write_count'],
+                'timestamp': f"{time.time() - stats['last_time']:.1f}s ago"
+            }
+            
+        # Publish as JSON string
+        history_json = json.dumps(history_data)
+        self.command_history_pub.publish(String(data=history_json))
+
+    def _get_device_name(self, address: int) -> str:
+        """
+        Get a human-readable name for an I2C device based on its address.
+        
+        Args:
+            address: I2C device address
+            
+        Returns:
+            Human-readable device name
+        """
+        # Define known device names
+        device_names = {
+            0x10: "Front Left Motor",
+            0x11: "Front Right Motor",
+            0x12: "Rear Left Motor",
+            0x13: "Rear Right Motor",
+            0x14: "Steering Servo",
+            0x20: "Excavation Belt",
+            0x21: "Deposition System"
+        }
+        
+        return device_names.get(address, f"Unknown Device ({hex(address)})")
 
     def destroy_node(self) -> None:
         """Clean up resources when node is shutting down."""
