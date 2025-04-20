@@ -414,9 +414,9 @@ class ControllerParser(Node):
             y_f: Normalized Y-axis (-1.0 to 1.0)
             magnitude: Magnitude of joystick deflection (0.0 to 1.0)
         """
-        self._handle_point_turn(x_f)
+        self._handle_point_turn(x_f, y_f)
 
-    def _handle_point_turn(self, x_f: float) -> None:
+    def _handle_point_turn(self, x_f: float, y_f: float) -> None:
         """
         Configure wheels for a zero-point turn with angles based on joystick position.
         
@@ -435,7 +435,7 @@ class ControllerParser(Node):
         
         # Set wheel speed based on joystick deflection
         # All wheels get the same speed, just different directions
-        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
+        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(max(x_f, y_f)))
         wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         if x_f > 0:  # Clockwise rotation
