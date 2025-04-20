@@ -488,7 +488,7 @@ class ControllerParser(Node):
         
         # Apply differential steering for turning while moving
         turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
-        turn_factor = x_f * turn_sensitivity
+        turn_factor = -x_f * turn_sensitivity
         
         # Calculate differential between left and right sides (proportional to turn factor)
         # Calculate the maximum speed delta based on current speed
