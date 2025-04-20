@@ -459,7 +459,7 @@ function updateControlValueElement(controlId, value) {
 
 // Function to be called every time the controlled is read from
 function readControllerData() {
-    var gamepad = navigator.getGamepads()[1]; // Assuming the first connected gamepad
+    var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
 
     if (gamepad == undefined) {
         return;

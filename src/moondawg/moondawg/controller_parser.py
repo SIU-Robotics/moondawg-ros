@@ -389,8 +389,8 @@ class ControllerParser(Node):
         servo_angle = clamp(int(servo_angle), 0, 180)
         
         # Set all servos to the same angle
-        for channel in range(1, 5):
-            self._set_steering_angle(servo_angle, channel)
+        for servo_index in range(1, 5):
+            self._set_steering_angle(servo_index, servo_angle)
         
         # Calculate speed based on magnitude and direction
         if reverse_direction:
@@ -440,10 +440,10 @@ class ControllerParser(Node):
         
         if x_f > 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
-            self._set_steering_angle(outer_angle, 1)  # Front left -> right
-            self._set_steering_angle(outer_angle, 2)  # Front right -> right  
-            self._set_steering_angle(inner_angle, 3)  # Rear left -> left
-            self._set_steering_angle(inner_angle, 4)  # Rear right -> left
+            self._set_steering_angle(1, outer_angle)  # Front left -> right
+            self._set_steering_angle(2, outer_angle)  # Front right -> right  
+            self._set_steering_angle(3, inner_angle)  # Rear left -> left
+            self._set_steering_angle(4, inner_angle)  # Rear right -> left
             
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels forward, rear wheels reverse
@@ -451,10 +451,10 @@ class ControllerParser(Node):
             
         else:  # Counter-clockwise rotation
             # Set wheel angles for counter-clockwise rotation
-            self._set_steering_angle(inner_angle, 1)  # Front left -> left
-            self._set_steering_angle(inner_angle, 2)  # Front right -> left
-            self._set_steering_angle(outer_angle, 3)  # Rear left -> right
-            self._set_steering_angle(outer_angle, 4)  # Rear right -> right
+            self._set_steering_angle(1, inner_angle)  # Front left -> left
+            self._set_steering_angle(2, inner_angle)  # Front right -> left
+            self._set_steering_angle(3, outer_angle)  # Rear left -> right
+            self._set_steering_angle(4, outer_angle)  # Rear right -> right
             
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels reverse, rear wheels forward
@@ -702,15 +702,15 @@ class ControllerParser(Node):
             "dpad_right": data[15]/100,
         }
 
-    def _set_steering_angle(self, angle: int, channel: int) -> None:
+    def _set_steering_angle(self, servo_index: int, angle: int) -> None:
         """
         Set the steering angle for a specific wheel.
         
         Args:
             angle: Angle to set (0-180)
-            channel: Channel number (1-4)
+            servo_index: servo_index number (1-4)
         """
-        self.send_i2c(I2CAddress.STEERING_SERVO, (angle, channel))
+        self.send_i2c(I2CAddress.STEERING_SERVO, (servo_index, angle))
 
     def _set_wheel_speeds(self, 
                          front_left: int, 
@@ -733,8 +733,8 @@ class ControllerParser(Node):
 
     def _center_wheels(self) -> None:
         """Set all wheels to center position (straight)."""
-        for channel in range(1, 5):
-            self._set_steering_angle(90, channel)
+        for servo_index in range(1, 5):
+            self._set_steering_angle(servo_index, 90)
 
     def _stop_motors(self) -> None:
         """Stop all wheel motors."""
@@ -816,9 +816,9 @@ class ControllerParser(Node):
             try:
                 # Parse the data for servo commands
                 if "," in data_str:
-                    value, channel = map(int, data_str.split(","))
-                    # Update the stored position for this channel
-                    self.steering_positions[channel] = value
+                    value, servo_index = map(int, data_str.split(","))
+                    # Update the stored position for this servo_index
+                    self.steering_positions[servo_index] = value
                 
                 # We'll handle publishing of steering in the publish_i2c_history method
                 # Immediately publish to show instant updates
