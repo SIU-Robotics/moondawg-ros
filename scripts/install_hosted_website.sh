@@ -17,27 +17,12 @@ echo "Installing nginx web server..."
 apt-get update
 apt-get install -y nginx
 
-# Create nginx configuration file
-echo "Configuring nginx to serve website..."
-cat > /etc/nginx/sites-available/moondawg.conf << EOF
-server {
-        listen 80 default_server;
-        listen [::]:80 default_server;
+echo "Creating symbolic link from /var/www/html to website directory..."
 
-        root $WEBSITE_DIR;
-        index index.html;
+rm -rf /var/www/html
 
-        server_name _;
-
-        location / {
-                try_files \$uri \$uri/ =404;
-        }
-}
-EOF
-
-# Enable the site configuration
-ln -sf /etc/nginx/sites-available/moondawg.conf /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+# Create the symbolic link
+ln -sf "$WEBSITE_DIR" /var/www/html
 
 # Ensure nginx can access the website directory
 chown -R www-data:www-data "$WEBSITE_DIR"
