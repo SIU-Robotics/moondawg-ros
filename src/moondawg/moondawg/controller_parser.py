@@ -435,7 +435,7 @@ class ControllerParser(Node):
         
         # Set wheel speed based on joystick deflection
         # All wheels get the same speed, just different directions
-        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * max(abs(x_f), abs(y_f)))
+        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * -x_f)
         wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         if x_f > 0:  # Clockwise rotation

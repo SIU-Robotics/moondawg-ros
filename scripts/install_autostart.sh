@@ -1,10 +1,8 @@
 #!/bin/bash
-
 set -e
-
 # Check if script is running as root
 if [ "$EUID" -ne 0 ]; then
-    echo "This script must be run as root. Please use 'su -c ./install_auto_start.sh'"
+    echo "This script must be run as root. Please run with 'sudo bash $0' or as root user."
     exit 1
 fi
 
