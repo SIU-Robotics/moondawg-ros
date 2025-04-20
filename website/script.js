@@ -68,7 +68,7 @@ var imageTopic = new ROSLIB.Topic({
 });
 var controllerDiagTopic = new ROSLIB.Topic({
     ros: ros,
-    name: "/controller_parser/controller_diag",
+    name: "/controller_parser/diag",
     messageType: "diagnostic_msgs/DiagnosticStatus",
 });
 var i2cDiagTopic = new ROSLIB.Topic({

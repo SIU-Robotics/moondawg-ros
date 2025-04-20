@@ -409,8 +409,8 @@ class ControllerParser(Node):
         
         # Calculate the wheel angles based on turn direction
         center_angle = 90
-        inner_angle = center_angle - turn_angle  # 90-turn_angle (45 at full deflection)
-        outer_angle = center_angle + turn_angle  # 90+turn_angle (135 at full deflection)
+        inner_angle = int(center_angle - turn_angle)  # 90-turn_angle (45 at full deflection)
+        outer_angle = int(center_angle + turn_angle)  # 90+turn_angle (135 at full deflection)
         
         if x_f > 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
@@ -536,11 +536,20 @@ class ControllerParser(Node):
         Args:
             buttons: Dictionary of button states
         """
-        # Right bumper toggles driving mode (rotate <-> crab)
+        # Right bumper toggles driving mode (rotate -> crab -> differential -> rotate)
         if buttons["rbutton"] != self.rbutton:
             if buttons["rbutton"] == 1 and self.rbutton == 0:
-                self.driving_mode = 1 - self.driving_mode
-                mode_name = "Crab" if self.driving_mode == DrivingMode.CRAB else "Rotate"
+            # Cycle through the three driving modes
+                self.driving_mode = (self.driving_mode + 1) % 3
+                
+                # Get the mode name for the diagnostic message
+                mode_names = {
+                    DrivingMode.ROTATE: "Rotate",
+                    DrivingMode.CRAB: "Crab",
+                    DrivingMode.DIFFERENTIAL: "Differential"
+                }
+                mode_name = mode_names[self.driving_mode]
+                
                 self.set_diagnostic_status(
                     DiagnosticStatus.OK, 
                     f"4WS driving mode changed to: {mode_name}"
