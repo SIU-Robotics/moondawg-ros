@@ -4,14 +4,6 @@
 
 `moondawg-ros` is a ROS2 package for controlling SIU's Lunabotics mining robot. This package provides a comprehensive framework for robot control via gamepad input, hardware communication, and a web-based operator interface.
 
-## Key Features
-
--   **Gamepad Control** - Xbox controller interface for all robot functions
--   **Web Interface** - Browser-based control panel with camera feed and diagnostics
--   **I2C Communication** - Interface with motor controllers and sensors
--   **Multiple Drive Modes** - Support for different steering configurations
--   **ROS2 Architecture** - Built on ROS2 Jazzy for modular, maintainable design
-
 ## Installation
 
 ### Prerequisites
