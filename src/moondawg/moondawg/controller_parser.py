@@ -487,8 +487,8 @@ class ControllerParser(Node):
         turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
         turn_factor = x_f * turn_sensitivity
         
-        left_speed = int(base_speed - (turn_factor * 90))
-        right_speed = int(base_speed + (turn_factor * 90))
+        left_speed = int(base_speed + (turn_factor * 90))
+        right_speed = int(base_speed - (turn_factor * 90))
         
         left_speed = clamp(left_speed, 0, 180)
         right_speed = clamp(right_speed, 0, 180)
