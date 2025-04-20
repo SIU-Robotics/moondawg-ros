@@ -492,7 +492,7 @@ class ControllerParser(Node):
         
         # Calculate differential between left and right sides (proportional to turn factor)
         # Calculate the maximum speed delta based on current speed
-        if y_f >= 0:  # Forward
+        if y_f <= 0:  # Forward
             max_delta = base_speed - MOTOR_FULL_REVERSE
         else:  # Reverse
             max_delta = MOTOR_FULL_FORWARD - base_speed
