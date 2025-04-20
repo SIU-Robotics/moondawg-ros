@@ -9,16 +9,6 @@ import cv2
 import base64
 import datetime
 from typing import Tuple, Union, Dict, List, Any
-from .string_gen import StringGen
-
-# Constants for better readability and maintenance
-# Movement constants
-FORWARD = 'f'
-BACKWARD = 'b'
-LEFT = 'l'
-RIGHT = 'r'
-UP = 'u'
-DOWN = 'd'
 
 # Motor speed constants
 BELT_REVERSE_SPEED = 30
@@ -27,6 +17,11 @@ MOTOR_FULL_FORWARD = 180
 MOTOR_FULL_REVERSE = 0
 CAMERA_CENTER = 90
 
+# Direction constants
+FORWARD = 1
+RIGHT = 1
+LEFT = 0
+
 # I2C addresses - consolidated into a single place for easy maintenance
 class I2CAddress:
     FRONT_LEFT = 0x10
@@ -34,13 +29,14 @@ class I2CAddress:
     REAR_LEFT = 0x12
     REAR_RIGHT = 0x13
     STEERING_SERVO = 0x14
-    BELT = 0x20
-    AUGER = 0x21
+    EXCAVATION = 0x20
+    DEPOSITION = 0x21
 
 # Driving modes
 class DrivingMode:
     ROTATE = 0
     CRAB = 1
+    DIFFERENTIAL = 2
 
 def clamp(value: float, low: float, high: float) -> float:
     """Constrain a value between a minimum and maximum value."""
@@ -76,7 +72,7 @@ class ControllerParser(Node):
     def _init_state_variables(self) -> None:
         """Initialize all state variables for the node."""
         # Component state
-        self.belt_speeds = [180, 125, 120]
+        self.belt_speeds = [180, 150, 120]  # Default values that will be overwritten by parameter
         self.belt_speed_index = 0
         self.driving_mode = DrivingMode.ROTATE
         
@@ -123,6 +119,8 @@ class ControllerParser(Node):
         self.declare_parameter('joystick_deadzone', 0.1)
         self.declare_parameter('turn_sensitivity', 0.5)
         self.declare_parameter('image_compression_quality', 20)
+        self.declare_parameter('auto_dig_duration_seconds', 30)
+        self.declare_parameter('belt_speeds', [180, 125, 120])
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
@@ -235,7 +233,7 @@ class ControllerParser(Node):
                 # Stop belt
                 self._stop_belt()
                 # Reset belt position
-                self._move_belt_position(True, RIGHT)
+                self._move_belt_position(1, RIGHT)
             return
             
         # Initialize the timer if this is the start of the sequence
@@ -251,13 +249,13 @@ class ControllerParser(Node):
         
         if elapsed_seconds < 3:
             # Phase 1: Lower belt
-            self._move_belt_position(True, LEFT)
+            self._move_belt_position(1, LEFT)
         elif 3 <= elapsed_seconds < 5:
             # Phase 2: Start belt
             self._start_belt()
         elif 17 <= elapsed_seconds < 19:
             # Phase 3: Raise belt
-            self._move_belt_position(True, RIGHT)
+            self._move_belt_position(1, RIGHT)
         elif elapsed_seconds >= 30:
             # Phase 4: Complete sequence
             self.digging = False
@@ -330,8 +328,11 @@ class ControllerParser(Node):
             
         if self.driving_mode == DrivingMode.CRAB:
             self._handle_crab_mode(x_f, y_f, magnitude)
-        else:
+        elif self.driving_mode == DrivingMode.ROTATE:
             self._handle_rotate_mode(x_f, y_f, magnitude)
+        elif self.driving_mode == DrivingMode.DIFFERENTIAL:
+            self._handle_differential_steering(x_f, y_f, magnitude)
+            
 
     def _handle_crab_mode(self, x_f: float, y_f: float, magnitude: float) -> None:
         """
@@ -344,17 +345,37 @@ class ControllerParser(Node):
         """
         # Calculate angle from joystick position (in degrees)
         angle_radians = atan2(x_f, y_f)
-        servo_angle = 90 + degrees(angle_radians)  # Convert to 0-180 range
+        angle_degrees = degrees(angle_radians)
+        
+        # Determine if we need to reverse direction
+        reverse_direction = False
+        
+        # If the angle would require servos to go beyond their range,
+        # flip the angle and reverse the motors instead
+        if angle_degrees > 90 or angle_degrees < -90:
+            # Flip the angle by 180 degrees
+            angle_degrees = (angle_degrees + 180) % 360
+            if angle_degrees > 180:
+                angle_degrees -= 360
+            reverse_direction = True
+        
+        # Convert to servo angle (0-180 range)
+        servo_angle = 90 + angle_degrees
         servo_angle = clamp(int(servo_angle), 0, 180)
         
         # Set all servos to the same angle
         for channel in range(1, 5):
             self._set_steering_angle(servo_angle, channel)
         
-        # Calculate speed based on magnitude 
-        # (90 = stopped, 180 = full forward, 0 = full reverse)
-        speed = 90 - int(90 * magnitude * (-1 if y_f >= 0 else 1))
-        speed = clamp(speed, 0, 180)
+        # Calculate speed based on magnitude and direction
+        if reverse_direction:
+            # Map to the range from MOTOR_STOPPED to MOTOR_FULL_FORWARD
+            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * magnitude)
+        else:
+            # Map to the range from MOTOR_STOPPED to MOTOR_FULL_REVERSE
+            speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * magnitude)
+        
+        speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         # Apply the same speed to all motors
         self._set_wheel_speeds(speed, speed, speed, speed)
@@ -376,38 +397,48 @@ class ControllerParser(Node):
 
     def _handle_point_turn(self, x_f: float) -> None:
         """
-        Configure wheels for a zero-point turn.
+        Configure wheels for a zero-point turn with angles based on joystick position.
         
         Args:
             x_f: Normalized X-axis (-1.0 to 1.0)
         """
+        # Calculate angle based on joystick position
+        # As x_f approaches 1 or -1, get closer to 45/135
+        # For smoother control, map x_f to a range between center and max turn angle
+        turn_angle = abs(x_f) * 45  # Maps 0-1 to 0-45 degree range
+        
+        # Calculate the wheel angles based on turn direction
+        center_angle = 90
+        inner_angle = center_angle - turn_angle  # 90-turn_angle (45 at full deflection)
+        outer_angle = center_angle + turn_angle  # 90+turn_angle (135 at full deflection)
+        
         if x_f > 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
-            self._set_steering_angle(135, 1)  # Front left -> right
-            self._set_steering_angle(135, 2)  # Front right -> right  
-            self._set_steering_angle(45, 3)   # Rear left -> left
-            self._set_steering_angle(45, 4)   # Rear right -> left
+            self._set_steering_angle(outer_angle, 1)  # Front left -> right
+            self._set_steering_angle(outer_angle, 2)  # Front right -> right  
+            self._set_steering_angle(inner_angle, 3)  # Rear left -> left
+            self._set_steering_angle(inner_angle, 4)  # Rear right -> left
             
             # Set speeds for rotation - front wheels forward, rear wheels reverse
-            speed = 90 + int(90 * abs(x_f))
-            rev_speed = 90 - int(90 * abs(x_f))
-            speed = clamp(speed, 0, 180)
-            rev_speed = clamp(rev_speed, 0, 180)
+            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
+            rev_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(x_f))
+            speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rev_speed = clamp(rev_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             
             self._set_wheel_speeds(speed, speed, rev_speed, rev_speed)
             
         else:  # Counter-clockwise rotation
             # Set wheel angles for counter-clockwise rotation
-            self._set_steering_angle(45, 1)   # Front left -> left
-            self._set_steering_angle(45, 2)   # Front right -> left
-            self._set_steering_angle(135, 3)  # Rear left -> right
-            self._set_steering_angle(135, 4)  # Rear right -> right
+            self._set_steering_angle(inner_angle, 1)  # Front left -> left
+            self._set_steering_angle(inner_angle, 2)  # Front right -> left
+            self._set_steering_angle(outer_angle, 3)  # Rear left -> right
+            self._set_steering_angle(outer_angle, 4)  # Rear right -> right
             
             # Set speeds for rotation - front wheels reverse, rear wheels forward
-            speed = 90 + int(90 * abs(x_f))
-            rev_speed = 90 - int(90 * abs(x_f))
-            speed = clamp(speed, 0, 180)
-            rev_speed = clamp(rev_speed, 0, 180)
+            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * abs(x_f))
+            rev_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(x_f))
+            speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rev_speed = clamp(rev_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             
             self._set_wheel_speeds(rev_speed, rev_speed, speed, speed)
 
@@ -474,8 +505,10 @@ class ControllerParser(Node):
         # B button => belt reverse, or off
         if buttons["button_b"] != self.button_b:
             self.button_b = buttons["button_b"]
-            cmd = StringGen.belt_string(buttons["button_b"], BELT_REVERSE_SPEED)
-            self.send_i2c(I2CAddress.BELT, cmd)
+            if self.button_b:
+                self.send_i2c(I2CAddress.EXCAVATION, BELT_REVERSE_SPEED)
+            else:
+                self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
 
         # D-pad up => belt position right
         if buttons["dpad_up"] != self.dpad_up:
@@ -489,10 +522,12 @@ class ControllerParser(Node):
 
         # Left bumper => belt forward (with current speed index)
         if buttons["lbutton"] != self.lbutton:
-            speed = self.belt_speeds[self.belt_speed_index]
-            cmd = StringGen.belt_string(buttons["lbutton"], speed)
-            self.send_i2c(I2CAddress.BELT, cmd)
             self.lbutton = buttons["lbutton"]
+            if self.lbutton:
+                speed = self.belt_speeds[self.belt_speed_index]
+                self.send_i2c(I2CAddress.EXCAVATION, speed)
+            else:
+                self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
 
     def _process_movement_controls(self, buttons: Dict[str, Any]) -> None:
         """
@@ -541,9 +576,11 @@ class ControllerParser(Node):
         """
         # X button => deposit forward/back
         if buttons["button_x"] != self.button_x:
-            cmd = StringGen.deposit_string(buttons["button_x"], FORWARD)
-            self.send_i2c(I2CAddress.AUGER, cmd)
             self.button_x = buttons["button_x"]
+            if self.button_x:
+                self.send_i2c(I2CAddress.DEPOSITION, FORWARD)
+            else:
+                self.send_i2c(I2CAddress.DEPOSITION, MOTOR_STOPPED)
 
     # ------------------- Helper methods -------------------
 
@@ -631,27 +668,27 @@ class ControllerParser(Node):
         """Stop all wheel motors."""
         self._set_wheel_speeds(90, 90, 90, 90)
 
-    def _move_belt_position(self, enabled: bool, direction: str) -> None:
+    def _move_belt_position(self, enabled: bool, direction: int) -> None:
         """
         Move the belt position.
         
         Args:
             enabled: Whether movement is enabled
-            direction: Direction of movement ('l' or 'r')
+            direction: Direction of movement (1 for right, 0 for left)
         """
-        cmd = StringGen.belt_position_string(enabled, direction)
-        self.send_i2c(I2CAddress.BELT, cmd)
+        if enabled:
+            self.send_i2c(I2CAddress.EXCAVATION, direction)
+        else:
+            self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
 
     def _start_belt(self) -> None:
         """Start the belt with the current speed setting."""
         speed = self.belt_speeds[self.belt_speed_index]
-        cmd = StringGen.belt_string(1, speed)
-        self.send_i2c(I2CAddress.BELT, cmd)
+        self.send_i2c(I2CAddress.EXCAVATION, speed)
 
     def _stop_belt(self) -> None:
         """Stop the belt."""
-        cmd = StringGen.belt_string(0, 90)
-        self.send_i2c(I2CAddress.BELT, cmd)
+        self.send_i2c(I2CAddress.EXCAVATION, MOTOR_STOPPED)
 
     def stop_all(self) -> None:
         """Stop all movement and reset positions."""
@@ -666,8 +703,7 @@ class ControllerParser(Node):
         self._move_belt_position(0, RIGHT)
 
         # Stop deposit/auger
-        deposit_stop = StringGen.deposit_string(0, FORWARD)
-        self.send_i2c(I2CAddress.AUGER, deposit_stop)
+        self.send_i2c(I2CAddress.DEPOSITION, MOTOR_STOPPED)
         
         self.get_logger().info("All movement stopped")
 
@@ -704,9 +740,6 @@ class ControllerParser(Node):
         elif isinstance(data, (tuple, list)):
             # Format a list of values
             msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
-        elif isinstance(data, String):
-            # Handle String messages (from StringGen)
-            msg_str = f"{hex(address)}:{data.data}"
         else:
             # Handle integer or other simple values
             msg_str = f"{hex(address)}:{data}"

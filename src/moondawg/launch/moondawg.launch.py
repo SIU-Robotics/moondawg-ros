@@ -12,7 +12,7 @@ def generate_launch_description():
     enable_rosbridge = LaunchConfiguration('enable_rosbridge', default='true')
     enable_camera = LaunchConfiguration('enable_camera', default='true')
     camera_device = LaunchConfiguration('camera_device', default='/dev/video0')
-    serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
+    # serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
     
@@ -108,8 +108,6 @@ def generate_launch_description():
                 {'debug': debug_mode}
             ]
         ),
-        
-        # # Optional: Serial communication node (if needed alongside I2C)
         # Node(
         #     package='moondawg',
         #     executable='serial_node',
