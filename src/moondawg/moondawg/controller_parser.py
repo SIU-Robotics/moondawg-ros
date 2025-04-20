@@ -481,7 +481,7 @@ class ControllerParser(Node):
         
         # Calculate base speed based on y_axis
         # Map y_f from [-1.0, 1.0] to [MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD]
-        if y_f >= 0:  # Forward
+        if y_f <= 0:  # Forward
             base_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * y_f)
         else:  # Reverse
             base_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(y_f))
@@ -492,7 +492,7 @@ class ControllerParser(Node):
         
         # Calculate differential between left and right sides (proportional to turn factor)
         # Calculate the maximum speed delta based on current speed
-        if y_f <= 0:  # Forward
+        if y_f >= 0:  # Forward
             max_delta = base_speed - MOTOR_FULL_REVERSE
         else:  # Reverse
             max_delta = MOTOR_FULL_FORWARD - base_speed
