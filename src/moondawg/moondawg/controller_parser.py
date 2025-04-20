@@ -480,15 +480,15 @@ class ControllerParser(Node):
         self._center_wheels()
         
         # Calculate speed based on y_axis (positive = forward, negative = backward)
-        base_speed = 90 - int(90 * y_f)
-        base_speed = clamp(base_speed, 0, 180)
+        base_speed = (MOTOR_FULL_FORWARD - MOTOR_STOPPED) - int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * y_f)
+        base_speed = clamp(base_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         # Apply differential steering for turning while moving
         turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
         turn_factor = x_f * turn_sensitivity
         
-        left_speed = int(base_speed + (turn_factor * 90))
-        right_speed = int(base_speed - (turn_factor * 90))
+        left_speed = int(base_speed + (turn_factor * (MOTOR_FULL_FORWARD - MOTOR_STOPPED)))
+        right_speed = int(base_speed - (turn_factor * (MOTOR_FULL_FORWARD - MOTOR_STOPPED)))
         
         left_speed = clamp(left_speed, 0, 180)
         right_speed = clamp(right_speed, 0, 180)
