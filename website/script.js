@@ -1,10 +1,20 @@
 // Parameters - change these to match the Pi
-var ip = "10.0.0.5"; // IP of the Pi
+var ip = "131.230.197.84"; // Default IP of the Pi for local development
 var port = "9090"; // Port of webserver node
 
+// Automatically use the current hostname if we're not on localhost or using file protocol
+if (
+    window.location.protocol !== "file:" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+) {
+    ip = window.location.hostname;
+    console.log("Using hostname for ROS connection:", ip);
+}
+
+var url_string = `ws://${ip}:${port}`;
 var gamepad_axis_prev = "null";
 var gamepad_button_prev = "null";
-var url_string = `ws://${ip}:${port}`;
 var controllerConnected = false;
 var activeControllerElements = new Set(); // Track active controller elements
 
