@@ -479,19 +479,33 @@ class ControllerParser(Node):
         # Set all wheels pointing forward
         self._center_wheels()
         
-        # Calculate speed based on y_axis (positive = forward, negative = backward)
-        base_speed = 90 - int(90 * y_f)
-        base_speed = clamp(base_speed, 0, 180)
+        # Calculate base speed based on y_axis
+        # Map y_f from [-1.0, 1.0] to [MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD]
+        if y_f >= 0:  # Forward
+            base_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * y_f)
+        else:  # Reverse
+            base_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(y_f))
         
         # Apply differential steering for turning while moving
         turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
         turn_factor = x_f * turn_sensitivity
         
-        left_speed = int(base_speed + (turn_factor * 90))
-        right_speed = int(base_speed - (turn_factor * 90))
+        # Calculate differential between left and right sides (proportional to turn factor)
+        # Calculate the maximum speed delta based on current speed
+        if y_f >= 0:  # Forward
+            max_delta = base_speed - MOTOR_FULL_REVERSE
+        else:  # Reverse
+            max_delta = MOTOR_FULL_FORWARD - base_speed
+            
+        speed_delta = int(max_delta * turn_factor)
         
-        left_speed = clamp(left_speed, 0, 180)
-        right_speed = clamp(right_speed, 0, 180)
+        # Apply the speed delta to get left and right speeds
+        left_speed = base_speed - speed_delta
+        right_speed = base_speed + speed_delta
+        
+        # Ensure speeds are within valid range
+        left_speed = clamp(left_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+        right_speed = clamp(right_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         # Apply speeds to the left and right sides
         self._set_wheel_speeds(left_speed, right_speed, left_speed, right_speed)
