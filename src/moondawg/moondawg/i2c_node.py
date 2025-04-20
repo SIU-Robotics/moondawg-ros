@@ -188,6 +188,7 @@ class I2CNode(Node):
             value: Byte value to write
         """
         if self._bus is None:
+            self.get_logger().error(f"Could not write to I2C bus. Would have wrote byte {value} to device {hex(address)}")
             self._set_diagnostic_status(
                 DiagnosticStatus.ERROR, 
                 "I2C bus not initialized"
@@ -209,6 +210,7 @@ class I2CNode(Node):
             values: List of values to write
         """
         if self._bus is None:
+            self.get_logger().error(f"Could not write to I2C bus. Would have wrote block {values} to device {hex(address)}")
             self._set_diagnostic_status(
                 DiagnosticStatus.ERROR, 
                 "I2C bus not initialized"
