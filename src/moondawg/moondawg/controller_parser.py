@@ -14,8 +14,8 @@ from typing import Tuple, Union, Dict, List, Any
 # Motor speed constants
 BELT_REVERSE_SPEED = 30
 MOTOR_STOPPED = 90
-MOTOR_FULL_FORWARD = 130
-MOTOR_FULL_REVERSE = 50
+MOTOR_FULL_FORWARD = 110
+MOTOR_FULL_REVERSE = 70
 CAMERA_CENTER = 90
 
 # Deposition command constants
@@ -30,6 +30,17 @@ BELT_POSITION = 2
 UP = 180
 DOWN = 0
 
+# Servo movement constants
+SERVO_STEP_SIZE = 1  # Degrees to move per update
+SERVO_UPDATE_RATE = 0.025  # Seconds between servo position updates
+WHEEL_SPEED_STEP_SIZE = 1  # Speed increment per update
+
+SERVO_INDEXES = {
+    1: "FL",  # Front Left
+    2: "FR",  # Front Right
+    3: "RL",  # Rear Left
+    4: "RR"   # Rear Right
+}
 # I2C addresses - consolidated into a single place for easy maintenance
 class I2CAddress:
     FRONT_LEFT = 0x10
@@ -118,7 +129,17 @@ class ControllerParser(Node):
         self.i2c_command_history = {}
         
         # Track steering positions for condensed display
-        self.steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}  # Default center positions
+        self.current_steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}
+        self.target_steering_positions =  dict(self.current_steering_positions) # Default center positions
+        
+        # Track current and target wheel speeds
+        self.current_wheel_speeds = {
+            I2CAddress.FRONT_LEFT: MOTOR_STOPPED,
+            I2CAddress.FRONT_RIGHT: MOTOR_STOPPED,
+            I2CAddress.REAR_LEFT: MOTOR_STOPPED,
+            I2CAddress.REAR_RIGHT: MOTOR_STOPPED
+        }
+        self.target_wheel_speeds = dict(self.current_wheel_speeds)
         
         # Diagnostic status setup
         self.diagnostic_status = DiagnosticStatus(
@@ -130,7 +151,7 @@ class ControllerParser(Node):
     def _declare_parameters(self) -> None:
         """Declare all ROS parameters for this node."""
         self.declare_parameter('belt_speed_index', 0)
-        self.declare_parameter('joystick_deadzone', 0.1)
+        self.declare_parameter('joystick_deadzone', 0.07)
         self.declare_parameter('turn_sensitivity', 0.5)
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('auto_dig_duration_seconds', 30)
@@ -194,6 +215,9 @@ class ControllerParser(Node):
         
         # Add a timer to publish I2C command history periodically
         self.i2c_history_timer = self.create_timer(0.5, self.publish_i2c_history)
+        
+        # Add a timer for servo interpolation updates
+        self.servo_timer = self.create_timer(SERVO_UPDATE_RATE, self._update_servo_positions)
         
         # Set initial diagnostic status
         self.set_diagnostic_status(DiagnosticStatus.OK, "Controller parser ready")
@@ -435,26 +459,25 @@ class ControllerParser(Node):
         
         # Set wheel speed based on joystick deflection
         # All wheels get the same speed, just different directions
-        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * -x_f)
+        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * -y_f)
         wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
         
         if x_f > 0:  # Clockwise rotation
             # Set wheel angles for clockwise rotation
-            self._set_steering_angle(1, outer_angle)  # Front left -> right
-            self._set_steering_angle(2, outer_angle)  # Front right -> right  
-            self._set_steering_angle(3, inner_angle)  # Rear left -> left
-            self._set_steering_angle(4, inner_angle)  # Rear right -> left
-            
+            self._set_steering_angle(1, inner_angle)  # Front left -> left
+            self._set_steering_angle(2, inner_angle)  # Front right -> left
+            self._set_steering_angle(3, outer_angle)  # Rear left -> right
+            self._set_steering_angle(4, outer_angle)  # Rear right -> right
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels forward, rear wheels reverse
             self._set_wheel_speeds(wheel_speed, wheel_speed, wheel_speed, wheel_speed)
             
         else:  # Counter-clockwise rotation
             # Set wheel angles for counter-clockwise rotation
-            self._set_steering_angle(1, inner_angle)  # Front left -> left
-            self._set_steering_angle(2, inner_angle)  # Front right -> left
-            self._set_steering_angle(3, outer_angle)  # Rear left -> right
-            self._set_steering_angle(4, outer_angle)  # Rear right -> right
+            self._set_steering_angle(1, outer_angle)  # Front left -> right
+            self._set_steering_angle(2, outer_angle)  # Front right -> right  
+            self._set_steering_angle(3, inner_angle)  # Rear left -> left
+            self._set_steering_angle(4, inner_angle)  # Rear right -> left
             
             # In rotate mode, all wheels have the same speed magnitude
             # Front wheels reverse, rear wheels forward
@@ -710,7 +733,8 @@ class ControllerParser(Node):
             angle: Angle to set (0-180)
             servo_index: servo_index number (1-4)
         """
-        self.send_i2c(I2CAddress.STEERING_SERVO, (servo_index, angle))
+        # Just store the target angle - the servo timer will gradually move to this position
+        self.target_steering_positions[servo_index] = angle
 
     def _set_wheel_speeds(self, 
                          front_left: int, 
@@ -726,10 +750,11 @@ class ControllerParser(Node):
             rear_left: Speed for rear left wheel (0-180)
             rear_right: Speed for rear right wheel (0-180)
         """
-        self.send_i2c(I2CAddress.FRONT_LEFT, front_left)
-        self.send_i2c(I2CAddress.FRONT_RIGHT, front_right)
-        self.send_i2c(I2CAddress.REAR_LEFT, rear_left)
-        self.send_i2c(I2CAddress.REAR_RIGHT, rear_right)
+        # Store the target speeds - the timer will gradually adjust to these values
+        self.target_wheel_speeds[I2CAddress.FRONT_LEFT] = front_left
+        self.target_wheel_speeds[I2CAddress.FRONT_RIGHT] = front_right  
+        self.target_wheel_speeds[I2CAddress.REAR_LEFT] = rear_left
+        self.target_wheel_speeds[I2CAddress.REAR_RIGHT] = rear_right
 
     def _center_wheels(self) -> None:
         """Set all wheels to center position (straight)."""
@@ -811,22 +836,6 @@ class ControllerParser(Node):
             address: I2C address
             data_str: String representation of the data sent
         """
-        # Handle steering servos specially - condense them
-        if address == I2CAddress.STEERING_SERVO:
-            try:
-                # Parse the data for servo commands
-                if "," in data_str:
-                    value, servo_index = map(int, data_str.split(","))
-                    # Update the stored position for this servo_index
-                    self.steering_positions[servo_index] = value
-                
-                # We'll handle publishing of steering in the publish_i2c_history method
-                # Immediately publish to show instant updates
-                self.publish_i2c_history()
-                return
-            except Exception as e:
-                self.get_logger().error(f"Error parsing servo data: {str(e)}")
-        
         # Get human-readable name for the address
         device_name = self._get_device_name(address)
         
@@ -867,15 +876,13 @@ class ControllerParser(Node):
         """
         Publish the I2C command history as a JSON string.
         """
-        if not self.i2c_command_history and all(pos == 90 for pos in self.steering_positions.values()):
+        if not self.i2c_command_history and all(pos == 90 for pos in self.current_steering_positions.values()):
             return
             
         # Create a copy of the history data to work with
         history_data = dict(self.i2c_command_history)
         
-        # Add condensed steering servo information
-        steering_data = ", ".join([f"CH{ch}: {pos}°" for ch, pos in self.steering_positions.items()])
-        
+        steering_data = ", ".join([f"{SERVO_INDEXES[ch]}: {pos}°" for ch, pos in self.current_steering_positions.items()])
         history_data[I2CAddress.STEERING_SERVO] = {
             'device_name': "Steering Servos",
             'address': hex(I2CAddress.STEERING_SERVO),
@@ -888,6 +895,32 @@ class ControllerParser(Node):
         
         # Publish the history
         self.i2c_history_pub.publish(String(data=history_json))
+
+    def _update_servo_positions(self) -> None:
+        """
+        Update servo positions and wheel speeds gradually to their target positions.
+        """
+        # Update steering servo positions
+        for servo_index, target_position in self.target_steering_positions.items():
+            current_position = self.current_steering_positions[servo_index]
+            if current_position != target_position:
+                step = SERVO_STEP_SIZE if current_position < target_position else -SERVO_STEP_SIZE
+                new_position = current_position + step
+                if (step > 0 and new_position > target_position) or (step < 0 and new_position < target_position):
+                    new_position = target_position
+                self.current_steering_positions[servo_index] = new_position
+                self.send_i2c(I2CAddress.STEERING_SERVO, (servo_index, new_position))
+        
+        # Update wheel speeds
+        for address, target_speed in self.target_wheel_speeds.items():
+            current_speed = self.current_wheel_speeds[address]
+            if current_speed != target_speed:
+                step = WHEEL_SPEED_STEP_SIZE if current_speed < target_speed else -WHEEL_SPEED_STEP_SIZE
+                new_speed = current_speed + step
+                if (step > 0 and new_speed > target_speed) or (step < 0 and new_speed < target_speed):
+                    new_speed = target_speed
+                self.current_wheel_speeds[address] = new_speed
+                self.send_i2c(address, new_speed)
 
 def main(args=None):
     """Main entry point for the node."""
