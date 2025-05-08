@@ -398,15 +398,9 @@ class ControllerParser(Node):
             x_f: Normalized X-axis (-1.0 to 1.0)
             y_f: Normalized Y-axis (-1.0 to 1.0)
         """
-        magnitude = hypot(x_f, y_f) # Calculate magnitude from normalized inputs
-        # deadzone check is now handled by axis_callback before calling this
-
         # Calculate angle from joystick position (in degrees)
         angle_radians = atan2(x_f, y_f)
         angle_degrees = degrees(angle_radians)
-        
-        # Determine if we need to reverse direction
-        reverse_direction = False
         
         # If the angle would require servos to go beyond their range,
         # flip the angle and reverse the motors instead
@@ -415,7 +409,6 @@ class ControllerParser(Node):
             angle_degrees = (angle_degrees + 180) % 360
             if angle_degrees > 180:
                 angle_degrees -= 360
-            reverse_direction = True
         
         # Convert to servo angle (0-180 range)
         servo_angle = 90 + angle_degrees
@@ -425,19 +418,7 @@ class ControllerParser(Node):
         for servo_index in range(1, 5):
             self._set_steering_angle(servo_index, servo_angle)
         
-        # Calculate speed based on magnitude and direction
-        if reverse_direction:
-            # Map to the range from MOTOR_STOPPED to MOTOR_FULL_FORWARD
-            speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * magnitude)
-        else:
-            # Map to the range from MOTOR_STOPPED to MOTOR_FULL_REVERSE
-            speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * magnitude)
         
-        speed = clamp(speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-        
-        # Apply the same speed to all motors
-        self._set_wheel_speeds(speed, speed, speed, speed)
-
     def _handle_rotation_from_right_stick(self, r_x_f: float) -> None:
         """
         Handle robot rotation based on right stick X-axis input.
