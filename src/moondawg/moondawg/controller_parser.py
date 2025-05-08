@@ -152,9 +152,15 @@ class ControllerParser(Node):
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('auto_dig_duration_seconds', 30)
         self.declare_parameter('belt_speeds', [180, 125, 120])
+        self.declare_parameter('simulation_mode', False)  # Indicates if the node is running in simulation mode (e.g., Gazebo)
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
+        # Check if we're running in simulation mode
+        self.simulation_mode = self.get_parameter('simulation_mode').get_parameter_value().bool_value
+        if self.simulation_mode:
+            self.get_logger().info("Running in simulation mode")
+        
         # Publishers
         self.diag_topic = self.create_publisher(
             DiagnosticStatus, 
@@ -198,12 +204,16 @@ class ControllerParser(Node):
             self.button_callback, 
             10
         )
-        self.image_subscription = self.create_subscription(
-            Image, 
-            'image', 
-            self.image_translator, 
-            10
-        )
+        
+        # Only subscribe to image topic if not in simulation mode
+        # In simulation, we'll rely on Gazebo's visualization
+        if not self.simulation_mode:
+            self.image_subscription = self.create_subscription(
+                Image, 
+                'image', 
+                self.image_translator, 
+                10
+            )
         
         # Timers
         self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
@@ -846,6 +856,15 @@ class ControllerParser(Node):
         
         # Publish the history
         self.i2c_history_pub.publish(String(data=history_json))
+
+    def _start_belt(self) -> None:
+        """Start the conveyor belt at the current speed setting."""
+        speed = self.belt_speeds[self.belt_speed_index]
+        self._set_belt_speed(speed)
+
+    def _stop_belt(self) -> None:
+        """Stop the conveyor belt."""
+        self._set_belt_speed(MOTOR_STOPPED)
 
     def _update_servo_positions(self) -> None:
         """

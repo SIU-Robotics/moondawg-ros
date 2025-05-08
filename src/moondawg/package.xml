@@ -5,7 +5,7 @@
   <version>1.0.0</version>
   <description>ROS2 package for controlling the SIU Lunabotics robot</description>
   <maintainer email="andrew.barnes@siu.edu">Andrew Barnes</maintainer>
-  <license>Apache-2.0</license>
+  <license>MIT</license>
   <url type="website">https://github.com/SIU-Robotics/moondawg-ros</url>
   <author email="andrew.barnes@siu.edu">Andrew Barnes</author>
 

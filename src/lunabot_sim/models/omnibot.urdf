@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<!--
+  Omni‑drive mobile robot
+  Dimensions: 1.5 m (L) × 0.75 m (W) × 0.75 m (H)
+  Four holonomic (omni) wheels with encoders
+  Generated May 8 2025
+-->
+<robot name="omni_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ======= Tunable parameters ======= -->
+  <xacro:property name="base_length" value="1.5"/>   <!-- metres -->
+  <xacro:property name="base_width"  value="0.75"/>
+  <xacro:property name="base_height" value="0.75"/>
+
+  <xacro:property name="wheel_radius" value="0.10"/>
+  <xacro:property name="wheel_width"  value="0.05"/>
+  <xacro:property name="wheel_mass"   value="1.0"/>
+  <xacro:property name="base_mass"    value="20.0"/>
+
+  <!-- ======= Base link ======= -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+      <material name="Gray">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+    </collision>
+
+    <inertial>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <mass value="${base_mass}"/>
+      <!-- Simple cube inertia approximation (update for exact CAD) -->
+      <inertia ixx="1" iyy="1" izz="1" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </link>
+
+  <!-- ======= Omni‑wheel macro ======= -->
+  <xacro:macro name="omni_wheel" params="prefix x y z">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="${x} ${y} ${z}" rpy="1.5708 0 0"/> <!-- rotate cylinder to roll around Y‑axis -->
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="Black">
+          <color rgba="0.1 0.1 0.1 1"/>
+        </material>
+      </visual>
+
+      <collision>
+        <origin xyz="${x} ${y} ${z}" rpy="1.5708 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="${x} ${y} ${z}" rpy="0 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+
+    <!-- Continuous joint for wheel rotation -->
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <origin xyz="${x} ${y} ${z}" rpy="0 0 0"/>
+      <parent link="base_link"/>
+      <child  link="${prefix}_wheel_link"/>
+      <axis xyz="0 1 0"/>
+      <limit effort="10" velocity="10"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ======= Wheel instances ======= -->
+  <xacro:property name="half_length" value="${base_length/2 - wheel_radius}"/>
+  <xacro:property name="half_width"  value="${base_width/2  - wheel_radius}"/>
+  <xacro:property name="wheel_z"     value="${wheel_radius}"/>
+
+  <!-- Front Left ( +x , +y ) -->
+  <xacro:omni_wheel prefix="front_left"  x="${ half_length}" y="${ half_width}" z="${wheel_z}"/>
+  <!-- Front Right ( +x , -y ) -->
+  <xacro:omni_wheel prefix="front_right" x="${ half_length}" y="${-half_width}" z="${wheel_z}"/>
+  <!-- Rear Left  ( -x , +y ) -->
+  <xacro:omni_wheel prefix="rear_left"   x="${-half_length}" y="${ half_width}" z="${wheel_z}"/>
+  <!-- Rear Right ( -x , -y ) -->
+  <xacro:omni_wheel prefix="rear_right"  x="${-half_length}" y="${-half_width}" z="${wheel_z}"/>
+
+  <!-- ======= (Optional) ros2_control transmission stubs ======= -->
+  <ros2_control name="OmniDriveSystem" type="system">
+    <hardware>
+      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
+    </hardware>
+    <joint name="front_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="front_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_left_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="rear_right_wheel_joint">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <!-- Gazebo plugin for ros2_control -->
+  <gazebo>
+    <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
+      <parameters>$(find lunabot_sim)/config/omnibot_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>
