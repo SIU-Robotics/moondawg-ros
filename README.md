@@ -1,64 +1,89 @@
-# moondawg-ros
+# MoonDawg ROS
 
 ## Overview
 
-`moondawg-ros` is a ROS2 package designed to interface with SIU's Lunabotics robot, providing functionalities for Xbox controller input, serial communication, and diagnostics. The package includes several nodes and scripts to facilitate these operations.
+`moondawg-ros` is a ROS2 package for controlling SIU's Lunabotics mining robot. This package provides a comprehensive framework for robot control via gamepad input, hardware communication, and a web-based operator interface.
 
-## Prerequisites
-- ROS2 Humble
-This package is made for ROS2 humble, ensure it is installed and sourced on Ubuntu 22.04. (see https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
-- ROS2 packages
-```bash
-sudo apt install ros-humble-cv-bridge ros-humble-rosbridge-suite ros-humble-image-tools
-```
-- Python modules
-```bash
-sudo apt install python3-opencv python3-serial
-```
+## Installation
 
-## Running the package
-1. Clone the repository:
-```bash
-git clone https://github.com/SIU-Robotics/moondawg-ros.git
-cd moondawg-ros
-```
+### Prerequisites
 
-2. Build the package:
-```bash
-colcon build
-```
+-   Ubuntu 24.04 or compatible Linux distribution
 
-3. Source the workspace:
-```bash
-source install/setup.bash
-```
+### Quick Setup
 
-4. Run:
+1. **Set up ROS2 sources**:
+
+    ```bash
+    sudo bash scripts/add_ros_sources.sh
+    ```
+
+2. **Install ROS2 Jazzy**:
+
+    ```bash
+    sudo apt install ros-jazzy-ros-base
+    ```
+
+3. **Install dependencies**:
+
+    ```bash
+    sudo bash scripts/install_dependencies.sh
+    ```
+
+4. **Build the package**:
+
+    ```bash
+    git clone https://github.com/SIU-Robotics/moondawg-ros.git
+    cd moondawg-ros
+    colcon build --symlink-install
+    source install/setup.bash
+    ```
+
+5. **Configure autostart** (optional, script is made for Jazzy):
+    ```bash
+    sudo bash scripts/install_autostart.sh
+    ```
+
+## Usage
+
+### Launch the Robot System
+
 ```bash
 ros2 launch moondawg moondawg.launch.py
 ```
 
-## Nodes
-### xbox_translator
+### Launch Options
 
-Translates Xbox controller inputs to Arduino-parsable messages.
+```bash
+# Disable camera
+ros2 launch moondawg moondawg.launch.py enable_camera:=false
 
-### serial_bridge
-Sends strings via serial to configured port (default: /dev/ttyACM0).
+# Change I2C bus
+ros2 launch moondawg moondawg.launch.py i2c_bus:=2
 
-### diagnostics
-Provides diagnostic information about the package's status.
+# Enable debug logging
+ros2 launch moondawg moondawg.launch.py debug:=true
+```
 
-## Configuration
+### Web Interface
 
-### Parameters
+Access the control interface at: `http://[ROBOT_IP]:9090`
 
-- **rate**: Baud rate for serial communication (default: 9600).
-- **port**: Serial port (default: `/dev/ttyACM0`).
-- **belt_speed_index**: The index into the belt speed array for which belt speed to use (default: 0).
-- **wheel_full_speed**: The fastest forward speed of the wheel motors (default: 130).
-- **wheel_full_stopped**: The value for a stopped wheel motor (default: 90).
+## System Architecture
 
-## Web Interface
+### Nodes
 
-A simple web interface is provided to display Xbox controller inputs and diagnostics.
+-   **controller_parser** - Processes gamepad inputs and sends robot commands
+-   **i2c_node** - Manages communication with motor controllers via I2C
+-   **serial_node** - Optional interface for Arduino-based peripherals
+
+## Troubleshooting
+
+### Common Issues
+
+-   **No controller detected**: Test with an online gamepad tester. If it appears, it is likely the index of the controller is wrong in **website/script.js**.
+-   **I2C communication errors**: Run `sudo i2cdetect -y 1` (or other i2c interface) to ensure the ESP32s are visible.
+
+## License
+
+Apache License 2.0
