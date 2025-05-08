@@ -292,7 +292,6 @@ class ControllerParser(Node):
             
             # Process manual control inputs
             self._process_belt_controls(buttons)
-            self._process_movement_controls(buttons)
             self._process_misc_controls(buttons)
             
         except Exception as e:
@@ -417,6 +416,8 @@ class ControllerParser(Node):
         # Set all servos to the same angle
         for servo_index in range(1, 5):
             self._set_steering_angle(servo_index, servo_angle)
+
+        self._set_wheel_speeds(MOTOR_STOPPED, MOTOR_STOPPED, MOTOR_STOPPED, MOTOR_STOPPED)
         
         
     def _handle_rotation_from_right_stick(self, r_x_f: float) -> None:
