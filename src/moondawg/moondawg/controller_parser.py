@@ -31,9 +31,9 @@ UP = 180
 DOWN = 0
 
 # Servo movement constants
-SERVO_STEP_SIZE = 1  # Degrees to move per update
-SERVO_UPDATE_RATE = 0.025  # Seconds between servo position updates
-WHEEL_SPEED_STEP_SIZE = 1  # Speed increment per update
+SERVO_STEP_SIZE = 5  # Degrees to move per update
+SERVO_UPDATE_RATE = 0.05  # Seconds between servo position updates
+WHEEL_SPEED_STEP_SIZE = 2  # Speed increment per update
 
 SERVO_INDEXES = {
     1: "FL",  # Front Left
@@ -50,12 +50,6 @@ class I2CAddress:
     STEERING_SERVO = 0x14
     EXCAVATION = 0x20
     DEPOSITION = 0x21
-
-# Driving modes
-class DrivingMode:
-    ROTATE = 0
-    CRAB = 1
-    DIFFERENTIAL = 2
 
 def clamp(value: float, low: float, high: float) -> float:
     """Constrain a value between a minimum and maximum value."""
@@ -93,7 +87,6 @@ class ControllerParser(Node):
         # Component state
         self.belt_speeds = [180, 150, 120]  # Default values that will be overwritten by parameter
         self.belt_speed_index = 0
-        self.driving_mode = DrivingMode.ROTATE
         
         # Connection state
         self.connection_time = 0
@@ -121,6 +114,10 @@ class ControllerParser(Node):
         self.menu = 0
         self.lstickbutton = 0
         self.rstickbutton = 0
+        
+        # Current trigger states (0-100)
+        self.current_ltrigger = 0
+        self.current_rtrigger = 0
         
         # Bridge for camera processing
         self.br = CvBridge()
@@ -152,7 +149,6 @@ class ControllerParser(Node):
         """Declare all ROS parameters for this node."""
         self.declare_parameter('belt_speed_index', 0)
         self.declare_parameter('joystick_deadzone', 0.07)
-        self.declare_parameter('turn_sensitivity', 0.5)
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('auto_dig_duration_seconds', 30)
         self.declare_parameter('belt_speeds', [180, 125, 120])
@@ -233,8 +229,45 @@ class ControllerParser(Node):
         """Process joystick axis data from the controller."""
         try:
             axis = self._parse_axis(request.data)
-            if self.ltrigger == 0 and self.rtrigger == 0:
-                self.four_wheel_steering_handler(axis['lstick_x'], axis['lstick_y'])
+            lstick_x, lstick_y = axis['lstick_x'], axis['lstick_y']
+            rstick_x = axis['rstick_x']
+
+            # Convert deadzone from 0-1 to 0-100 for comparison with axis data
+            deadzone_val = self.get_parameter('joystick_deadzone').get_parameter_value().double_value * 100.0
+
+            lstick_magnitude = hypot(lstick_x, lstick_y)
+            rstick_x_abs = abs(rstick_x)
+
+            lstick_active = lstick_magnitude > deadzone_val
+            rstick_active_rotate = rstick_x_abs > deadzone_val
+
+            # Trigger values (0-100 from self.current_ltrigger/rtrigger) and deadzone
+            # Using a fixed absolute deadzone for triggers (0-100 scale)
+            trigger_deadzone_abs = 10 
+
+            trigger_active_l = self.current_ltrigger > trigger_deadzone_abs
+            trigger_active_r = self.current_rtrigger > trigger_deadzone_abs
+
+            # Normalized stick values for handlers that expect -1.0 to 1.0
+            lstick_x_norm = lstick_x / 100.0
+            lstick_y_norm = lstick_y / 100.0
+            rstick_x_norm = rstick_x / 100.0
+
+            if rstick_active_rotate:
+                self._handle_rotation_from_right_stick(rstick_x_norm)
+            elif trigger_active_l or trigger_active_r:
+                # Raw trigger diff: rtrigger (0-100) - ltrigger (0-100) => -100 to 100
+                trigger_y_raw = self.current_rtrigger - self.current_ltrigger
+                # Normalized trigger diff: -1.0 to 1.0
+                trigger_y_norm = trigger_y_raw / 100.0
+                self._handle_trigger_drive(trigger_y_norm, lstick_x_norm, lstick_y_norm, lstick_active)
+            elif lstick_active:
+                self._handle_crab_mode(lstick_x_norm, lstick_y_norm)
+            else:
+                # Both sticks are in deadzone or not causing a prioritized action
+                self._center_wheels()
+                self._stop_motors()
+
         except Exception as e:
             self.set_diagnostic_status(
                 DiagnosticStatus.ERROR, 
@@ -245,6 +278,10 @@ class ControllerParser(Node):
         """Process button data from the controller."""
         try:
             buttons = self._parse_buttons(request.data)
+            
+            # Update current trigger states
+            self.current_ltrigger = buttons.get('ltrigger', 0)
+            self.current_rtrigger = buttons.get('rtrigger', 0)
             
             # Check if we should toggle autonomous mode
             self._check_auto_toggle(buttons)
@@ -353,45 +390,17 @@ class ControllerParser(Node):
 
     # ------------------- Control handlers -------------------
 
-    def four_wheel_steering_handler(self, x: float, y: float) -> None:
-        """
-        Handle four wheel steering based on joystick input.
-        
-        Args:
-            x: X-axis joystick value (-100 to 100)
-            y: Y-axis joystick value (-100 to 100)
-        """
-        # Normalize inputs to [-1.0, 1.0]
-        x_f = x / 100.0
-        y_f = y / 100.0
-        
-        # Calculate magnitude of joystick movement (0.0 to 1.0)
-        magnitude = hypot(x_f, y_f)
-        deadzone = self.get_parameter('joystick_deadzone').get_parameter_value().double_value
-        
-        # Ignore very small movements (deadzone)
-        if magnitude < deadzone:
-            self._center_wheels()
-            self._stop_motors()
-            return
-            
-        if self.driving_mode == DrivingMode.CRAB:
-            self._handle_crab_mode(x_f, y_f, magnitude)
-        elif self.driving_mode == DrivingMode.ROTATE:
-            self._handle_rotate_mode(x_f, y_f, magnitude)
-        elif self.driving_mode == DrivingMode.DIFFERENTIAL:
-            self._handle_differential_steering(x_f, y_f, magnitude)
-            
-
-    def _handle_crab_mode(self, x_f: float, y_f: float, magnitude: float) -> None:
+    def _handle_crab_mode(self, x_f: float, y_f: float) -> None:
         """
         Handle crab steering mode (all wheels point in same direction).
         
         Args:
             x_f: Normalized X-axis (-1.0 to 1.0)
             y_f: Normalized Y-axis (-1.0 to 1.0)
-            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
         """
+        magnitude = hypot(x_f, y_f) # Calculate magnitude from normalized inputs
+        # deadzone check is now handled by axis_callback before calling this
+
         # Calculate angle from joystick position (in degrees)
         angle_radians = atan2(x_f, y_f)
         angle_degrees = degrees(angle_radians)
@@ -429,102 +438,99 @@ class ControllerParser(Node):
         # Apply the same speed to all motors
         self._set_wheel_speeds(speed, speed, speed, speed)
 
-    def _handle_rotate_mode(self, x_f: float, y_f: float, magnitude: float) -> None:
+    def _handle_rotation_from_right_stick(self, r_x_f: float) -> None:
         """
-        Handle rotation steering mode.
-        
-        Args:
-            x_f: Normalized X-axis (-1.0 to 1.0)
-            y_f: Normalized Y-axis (-1.0 to 1.0)
-            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
-        """
-        self._handle_point_turn(x_f, y_f)
+        Handle robot rotation based on right stick X-axis input.
+        Wheels are set to 45 degrees inward for point turn.
+        Speed is proportional to stick deflection.
 
-    def _handle_point_turn(self, x_f: float, y_f: float) -> None:
-        """
-        Configure wheels for a zero-point turn with angles based on joystick position.
-        
         Args:
-            x_f: Normalized X-axis (-1.0 to 1.0)
+            r_x_f: Normalized right stick X-axis value (-1.0 to 1.0)
         """
-        # Calculate angle based on joystick position
-        # As x_f approaches 1 or -1, get closer to 45/135
-        # For smoother control, map x_f to a range between center and max turn angle
-        turn_angle = abs(x_f) * 75  # Maps 0-1 to 0-90 degree range
+        # Deadzone check is handled by axis_callback before calling this.
         
-        # Calculate the wheel angles based on turn direction
-        center_angle = 90
-        inner_angle = int(center_angle - turn_angle)  # 90-turn_angle (45 at full deflection)
-        outer_angle = int(center_angle + turn_angle)  # 90+turn_angle (135 at full deflection)
-        
-        # Set wheel speed based on joystick deflection
-        # All wheels get the same speed, just different directions
-        wheel_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * -y_f)
-        wheel_speed = clamp(wheel_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-        
-        if x_f > 0:  # Clockwise rotation
-            # Set wheel angles for clockwise rotation
-            self._set_steering_angle(1, inner_angle)  # Front left -> left
-            self._set_steering_angle(2, inner_angle)  # Front right -> left
-            self._set_steering_angle(3, outer_angle)  # Rear left -> right
-            self._set_steering_angle(4, outer_angle)  # Rear right -> right
-            # In rotate mode, all wheels have the same speed magnitude
-            # Front wheels forward, rear wheels reverse
-            self._set_wheel_speeds(wheel_speed, wheel_speed, wheel_speed, wheel_speed)
-            
-        else:  # Counter-clockwise rotation
-            # Set wheel angles for counter-clockwise rotation
-            self._set_steering_angle(1, outer_angle)  # Front left -> right
-            self._set_steering_angle(2, outer_angle)  # Front right -> right  
-            self._set_steering_angle(3, inner_angle)  # Rear left -> left
-            self._set_steering_angle(4, inner_angle)  # Rear right -> left
-            
-            # In rotate mode, all wheels have the same speed magnitude
-            # Front wheels reverse, rear wheels forward
-            self._set_wheel_speeds(wheel_speed, wheel_speed, wheel_speed, wheel_speed)
+        speed_magnitude_factor = abs(r_x_f)
+        speed_offset = int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * speed_magnitude_factor)
 
-    def _handle_differential_steering(self, x_f: float, y_f: float, magnitude: float) -> None:
+        if r_x_f > 0:  # Clockwise rotation
+            # Angles: FL points inward-right, FR inward-left, RL inward-right, RR inward-left
+            self._set_steering_angle(1, 135)  # Front Left
+            self._set_steering_angle(2, 45)   # Front Right
+            self._set_steering_angle(3, 135)  # Rear Left (angling right for clockwise)
+            self._set_steering_angle(4, 45)   # Rear Right (angling left for clockwise)
+
+            # Speeds for clockwise: Left wheels forward, Right wheels reverse
+            fl_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            fr_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rl_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rr_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
+
+        elif r_x_f < 0:  # Counter-clockwise rotation
+            # Angles: FL points inward-left, FR inward-right, RL inward-left, RR inward-right
+            self._set_steering_angle(1, 45)   # Front Left
+            self._set_steering_angle(2, 135)  # Front Right
+            self._set_steering_angle(3, 45)   # Rear Left (angling left for CCW)
+            self._set_steering_angle(4, 135)  # Rear Right (angling right for CCW)
+
+            # Speeds for counter-clockwise: Left wheels reverse, Right wheels forward
+            fl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            fr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            rr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
+        # If r_x_f is 0 (or within deadzone), axis_callback handles stopping motors.
+
+    def _handle_trigger_drive(self, trigger_y_norm: float, stick_x_norm: float, stick_y_norm: float, stick_active_for_steering: bool) -> None:
         """
-        Handle differential steering for forward/backward movement with turning.
-        
+        Handle robot movement based on triggers for speed and optional left stick for steering.
+        Left stick controls wheel direction for crabbing. Triggers control speed along that direction.
+
         Args:
-            x_f: Normalized X-axis (-1.0 to 1.0)
-            y_f: Normalized Y-axis (-1.0 to 1.0)
-            magnitude: Magnitude of joystick deflection (0.0 to 1.0)
+            trigger_y_norm: Normalized trigger difference (-1.0 for full reverse, 1.0 for full forward).
+            stick_x_norm: Normalized left stick X-axis (-1.0 to 1.0).
+            stick_y_norm: Normalized left stick Y-axis (-1.0 to 1.0).
+            stick_active_for_steering: True if left stick is outside deadzone and should be used for steering.
         """
-        # Set all wheels pointing forward
-        self._center_wheels()
-        
-        # Calculate base speed based on y_axis
-        # Map y_f from [-1.0, 1.0] to [MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD]
-        if y_f >= 0:  # Forward
-            base_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * -y_f)
-        else:  # Reverse
-            base_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * y_f)
-        
-        # Apply differential steering for turning while moving
-        turn_sensitivity = self.get_parameter('turn_sensitivity').get_parameter_value().double_value
-        turn_factor = x_f * turn_sensitivity
-        
-        # Calculate differential between left and right sides (proportional to turn factor)
-        # Calculate the maximum speed delta based on current speed
-        if y_f >= 0:  # Forward
-            max_delta = base_speed - MOTOR_FULL_REVERSE
-        else:  # Reverse
-            max_delta = MOTOR_FULL_FORWARD - base_speed
+        if stick_active_for_steering:
+            # Calculate wheel angle for crab steering based on left stick direction
+            angle_radians = atan2(stick_x_norm, stick_y_norm)
+            angle_degrees_raw = degrees(angle_radians) # Raw angle from stick: 0 for Fwd, 90 for Right, etc.
             
-        speed_delta = int(max_delta * turn_factor)
-        
-        # Apply the speed delta to get left and right speeds
-        left_speed = base_speed + speed_delta
-        right_speed = base_speed - speed_delta
-        
-        # Ensure speeds are within valid range
-        left_speed = clamp(left_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-        right_speed = clamp(right_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-        
-        # Apply speeds to the left and right sides
-        self._set_wheel_speeds(left_speed, right_speed, left_speed, right_speed)
+            # Adjust angle to be within [-90, 90] relative to chassis forward,
+            # so servo angle points the "front" of the crab maneuver along the stick direction.
+            effective_angle_degrees = angle_degrees_raw
+            if angle_degrees_raw > 90:
+                effective_angle_degrees = angle_degrees_raw - 180
+            elif angle_degrees_raw < -90:
+                effective_angle_degrees = angle_degrees_raw + 180
+            
+            # Convert to servo angle (0-180 range, 90 is straight)
+            servo_angle_calculated = 90 + effective_angle_degrees 
+            servo_angle_clamped = clamp(int(round(servo_angle_calculated)), 0, 180)
+            
+            for servo_idx in range(1, 5): # Servos 1-4
+                self._set_steering_angle(servo_idx, servo_angle_clamped)
+        else:
+            # No stick steering, so wheels point straight forward
+            self._center_wheels()
+
+        # Triggers determine the magnitude and direction (forward/reverse) of movement
+        # along the line defined by the current wheel angle.
+        actual_drive_norm = trigger_y_norm
+
+        # Calculate motor speed based on actual_drive_norm (-1.0 to 1.0)
+        # Positive actual_drive_norm means "forward" along the (possibly crabbed) direction.
+        # Negative actual_drive_norm means "reverse" along the (possibly crabbed) direction.
+        motor_speed = MOTOR_STOPPED
+        if actual_drive_norm > 0.001: # Apply a small deadzone to normalized drive
+            motor_speed = MOTOR_STOPPED + int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * actual_drive_norm)
+        elif actual_drive_norm < -0.001: # Apply a small deadzone to normalized drive
+            # abs(actual_drive_norm) because (MOTOR_STOPPED - MOTOR_FULL_REVERSE) is positive
+            motor_speed = MOTOR_STOPPED - int((MOTOR_STOPPED - MOTOR_FULL_REVERSE) * abs(actual_drive_norm))
+            
+        final_speed = clamp(motor_speed, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+        self._set_wheel_speeds(final_speed, final_speed, final_speed, final_speed)
 
     # ------------------- Button processing functions -------------------
 
@@ -589,43 +595,6 @@ class ControllerParser(Node):
                 self._set_belt_speed(speed)
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
-
-    def _process_movement_controls(self, buttons: Dict[str, Any]) -> None:
-        """
-        Process movement-related button inputs.
-        
-        Args:
-            buttons: Dictionary of button states
-        """
-        # Right bumper toggles driving mode (rotate -> crab -> differential -> rotate)
-        if buttons["rbutton"] != self.rbutton:
-            if buttons["rbutton"] == 1 and self.rbutton == 0:
-            # Cycle through the three driving modes
-                self.driving_mode = (self.driving_mode + 1) % 3
-                
-                # Get the mode name for the diagnostic message
-                mode_names = {
-                    DrivingMode.ROTATE: "Rotate",
-                    DrivingMode.CRAB: "Crab",
-                    DrivingMode.DIFFERENTIAL: "Differential"
-                }
-                mode_name = mode_names[self.driving_mode]
-                
-                self.set_diagnostic_status(
-                    DiagnosticStatus.OK, 
-                    f"4WS driving mode changed to: {mode_name}"
-                )
-            self.rbutton = buttons["rbutton"]
-
-        # Right trigger => forward
-        if buttons['rtrigger'] != self.rtrigger:
-            self.rtrigger = buttons['rtrigger']
-            self.four_wheel_steering_handler(0, self.rtrigger)
-
-        # Left trigger => reverse
-        if buttons['ltrigger'] != self.ltrigger:
-            self.ltrigger = buttons['ltrigger']
-            self.four_wheel_steering_handler(0, self.ltrigger*-1)
 
     def _process_misc_controls(self, buttons: Dict[str, Any]) -> None:
         """
