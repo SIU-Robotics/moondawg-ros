@@ -71,11 +71,35 @@ var buttonTopic = new ROSLIB.Topic({
     name: "/controller_parser/gamepad_button",
     messageType: "std_msgs/Int8MultiArray",
 });
+
+// Camera image topics
 var imageTopic = new ROSLIB.Topic({
     ros: ros,
     name: "/controller_parser/compressed_image",
     messageType: "std_msgs/String",
 });
+var rs1ColorTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/controller_parser/rs1_color_image",
+    messageType: "std_msgs/String",
+});
+var rs1DepthTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/controller_parser/rs1_depth_image",
+    messageType: "std_msgs/String",
+});
+var rs2ColorTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/controller_parser/rs2_color_image",
+    messageType: "std_msgs/String",
+});
+var rs2DepthTopic = new ROSLIB.Topic({
+    ros: ros,
+    name: "/controller_parser/rs2_depth_image",
+    messageType: "std_msgs/String",
+});
+
+// Diagnostic topics
 var controllerDiagTopic = new ROSLIB.Topic({
     ros: ros,
     name: "/controller_parser/diag",
@@ -139,6 +163,27 @@ function fetchParameters() {
 // Subscribe to topics
 imageTopic.subscribe(function (message) {
     document.getElementById("video_out").src =
+        "data:image/jpeg;base64," + message.data;
+});
+
+// Subscribe to RealSense camera topics
+rs1ColorTopic.subscribe(function (message) {
+    document.getElementById("rs1_color").src =
+        "data:image/jpeg;base64," + message.data;
+});
+
+rs1DepthTopic.subscribe(function (message) {
+    document.getElementById("rs1_depth").src =
+        "data:image/jpeg;base64," + message.data;
+});
+
+rs2ColorTopic.subscribe(function (message) {
+    document.getElementById("rs2_color").src =
+        "data:image/jpeg;base64," + message.data;
+});
+
+rs2DepthTopic.subscribe(function (message) {
+    document.getElementById("rs2_depth").src =
         "data:image/jpeg;base64," + message.data;
 });
 

@@ -166,9 +166,31 @@ class ControllerParser(Node):
             '/i2c_node/command', 
             10
         )
+        
+        # Image publishers for Web UI
         self.image_pub = self.create_publisher(
             String, 
             '/controller_parser/compressed_image', 
+            10
+        )
+        self.rs1_color_pub = self.create_publisher(
+            String, 
+            '/controller_parser/rs1_color_image', 
+            10
+        )
+        self.rs1_depth_pub = self.create_publisher(
+            String, 
+            '/controller_parser/rs1_depth_image', 
+            10
+        )
+        self.rs2_color_pub = self.create_publisher(
+            String, 
+            '/controller_parser/rs2_color_image', 
+            10
+        )
+        self.rs2_depth_pub = self.create_publisher(
+            String, 
+            '/controller_parser/rs2_depth_image', 
             10
         )
         
@@ -198,10 +220,38 @@ class ControllerParser(Node):
             self.button_callback, 
             10
         )
+        
+        # Camera image subscriptions
         self.image_subscription = self.create_subscription(
             Image, 
             'image', 
             self.image_translator, 
+            10
+        )
+        
+        # RealSense camera subscriptions
+        self.rs1_color_subscription = self.create_subscription(
+            Image, 
+            '/camera1/color/image_raw', 
+            self.rs1_color_translator, 
+            10
+        )
+        self.rs1_depth_subscription = self.create_subscription(
+            Image, 
+            '/camera1/aligned_depth_to_color/image_raw', 
+            self.rs1_depth_translator, 
+            10
+        )
+        self.rs2_color_subscription = self.create_subscription(
+            Image, 
+            '/camera2/color/image_raw', 
+            self.rs2_color_translator, 
+            10
+        )
+        self.rs2_depth_subscription = self.create_subscription(
+            Image, 
+            '/camera2/aligned_depth_to_color/image_raw', 
+            self.rs2_depth_translator, 
             10
         )
         
@@ -365,6 +415,102 @@ class ControllerParser(Node):
             self.image_pub.publish(String(data=base64_data))
         except Exception as e:
             self.get_logger().error(f"Error processing camera image: {str(e)}")
+
+    def rs1_color_translator(self, message: Image) -> None:
+        """
+        Convert RealSense 1 color image to compressed base64 strings for web transmission.
+        
+        Args:
+            message: The Image message from the RealSense 1 color camera
+        """
+        try:
+            # Convert ROS Image to OpenCV image
+            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
+            
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            self.rs1_color_pub.publish(String(data=base64_data))
+        except Exception as e:
+            self.get_logger().error(f"Error processing RealSense 1 color image: {str(e)}")
+    
+    def rs1_depth_translator(self, message: Image) -> None:
+        """
+        Convert RealSense 1 depth image to compressed base64 strings for web transmission.
+        
+        Args:
+            message: The Image message from the RealSense 1 depth camera
+        """
+        try:
+            # Convert ROS Image to OpenCV image
+            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
+            
+            # Normalize depth for visualization (16-bit to 8-bit)
+            cv_image_normalized = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            
+            # Apply colormap for better visualization
+            cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
+            
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            self.rs1_depth_pub.publish(String(data=base64_data))
+        except Exception as e:
+            self.get_logger().error(f"Error processing RealSense 1 depth image: {str(e)}")
+    
+    def rs2_color_translator(self, message: Image) -> None:
+        """
+        Convert RealSense 2 color image to compressed base64 strings for web transmission.
+        
+        Args:
+            message: The Image message from the RealSense 2 color camera
+        """
+        try:
+            # Convert ROS Image to OpenCV image
+            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
+            
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            self.rs2_color_pub.publish(String(data=base64_data))
+        except Exception as e:
+            self.get_logger().error(f"Error processing RealSense 2 color image: {str(e)}")
+    
+    def rs2_depth_translator(self, message: Image) -> None:
+        """
+        Convert RealSense 2 depth image to compressed base64 strings for web transmission.
+        
+        Args:
+            message: The Image message from the RealSense 2 depth camera
+        """
+        try:
+            # Convert ROS Image to OpenCV image
+            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
+            
+            # Normalize depth for visualization (16-bit to 8-bit)
+            cv_image_normalized = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            
+            # Apply colormap for better visualization
+            cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
+            
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            self.rs2_depth_pub.publish(String(data=base64_data))
+        except Exception as e:
+            self.get_logger().error(f"Error processing RealSense 2 depth image: {str(e)}")
 
     def heartbeat(self) -> None:
         """

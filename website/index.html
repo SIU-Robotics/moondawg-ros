@@ -72,13 +72,19 @@
         }
         .video-container {
             text-align: center;
-            margin: 12px 0;
+            margin: 6px 0;
         }
-        #video_out {
+        .video-thumbnail {
             max-width: 100%;
             height: auto;
             border-radius: 6px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .camera-caption {
+            font-size: 0.85rem;
+            margin-top: 3px;
+            font-weight: bold;
+            color: #343a40;
         }
         .table-primary {
             transition: background-color 0.2s ease;
@@ -133,9 +139,54 @@
             <!-- Left column with video feed and diagnostics -->
             <div class="col-lg-8 pe-lg-2">
                 <div class="row slim-row">
-                    <div class="col-md-8">
-                        <div class="video-container mb-2">
-                            <img src="novideo.png" id="video_out" class="img-fluid"></img>
+                    <div class="col-md-12">
+                        <div class="card mb-2">
+                            <div class="card-header d-flex justify-content-between align-items-center p-2">
+                                <h6 class="mb-0">Camera Feeds</h6>
+                            </div>
+                            <div class="card-body p-2">
+                                <div class="row">
+                                    <!-- USB Camera Feed -->
+                                    <div class="col-md-4">
+                                        <div class="video-container">
+                                            <img src="novideo.png" id="video_out" class="video-thumbnail"></img>
+                                            <div class="camera-caption">USB Camera</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- RealSense 1 Color Feed -->
+                                    <div class="col-md-4">
+                                        <div class="video-container">
+                                            <img src="novideo.png" id="rs1_color" class="video-thumbnail"></img>
+                                            <div class="camera-caption">RealSense 1 - RGB</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- RealSense 1 Depth Feed -->
+                                    <div class="col-md-4">
+                                        <div class="video-container">
+                                            <img src="novideo.png" id="rs1_depth" class="video-thumbnail"></img>
+                                            <div class="camera-caption">RealSense 1 - Depth</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- RealSense 2 Color Feed -->
+                                    <div class="col-md-4">
+                                        <div class="video-container">
+                                            <img src="novideo.png" id="rs2_color" class="video-thumbnail"></img>
+                                            <div class="camera-caption">RealSense 2 - RGB</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- RealSense 2 Depth Feed -->
+                                    <div class="col-md-4">
+                                        <div class="video-container">
+                                            <img src="novideo.png" id="rs2_depth" class="video-thumbnail"></img>
+                                            <div class="camera-caption">RealSense 2 - Depth</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-4">
