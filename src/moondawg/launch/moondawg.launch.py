@@ -10,9 +10,13 @@ def generate_launch_description():
     
     # Launch arguments
     enable_rosbridge = LaunchConfiguration('enable_rosbridge', default='true')
-    enable_camera = LaunchConfiguration('enable_camera', default='true')
+    
+    # Camera enable flags - individual control for each camera
+    enable_usb_camera = LaunchConfiguration('enable_usb', default='true')
+    enable_depth1 = LaunchConfiguration('enable_depth1', default='true')
+    enable_depth2 = LaunchConfiguration('enable_depth2', default='true')
+    
     camera_device = LaunchConfiguration('camera_device', default='/dev/video0')
-    enable_realsense = LaunchConfiguration('enable_realsense', default='true')
     realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
     realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
     # serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
@@ -27,19 +31,24 @@ def generate_launch_description():
             description='Enable or disable the ROS bridge websocket server'
         ),
         DeclareLaunchArgument(
-            'enable_camera',
-            default_value='true',
-            description='Enable or disable the camera node'
+            'enable_usb',
+            default_value='false',
+            description='Enable or disable the USB camera'
+        ),
+        DeclareLaunchArgument(
+            'enable_depth1',
+            default_value='false',
+            description='Enable or disable the first RealSense depth camera'
+        ),
+        DeclareLaunchArgument(
+            'enable_depth2',
+            default_value='false',
+            description='Enable or disable the second RealSense depth camera'
         ),
         DeclareLaunchArgument(
             'camera_device',
             default_value='/dev/video0',
             description='Camera device path'
-        ),
-        DeclareLaunchArgument(
-            'enable_realsense',
-            default_value='true',
-            description='Enable or disable the RealSense cameras'
         ),
         DeclareLaunchArgument(
             'realsense1_serial',
@@ -84,13 +93,13 @@ def generate_launch_description():
             ]
         ),
         
-        # Web camera node - conditionally launched
+        # Web camera node - conditionally launched with USB camera flag
         Node(
             package='image_tools',
             executable='cam2image',
             name='cam2image',
             output='screen',
-            condition=IfCondition(enable_camera),
+            condition=IfCondition(enable_usb_camera),
             parameters=[
                 {'device': camera_device},
                 {'width': 640},
@@ -99,13 +108,13 @@ def generate_launch_description():
             ]
         ),
         
-        # RealSense camera 1 - conditionally launched
+        # RealSense camera 1 - conditionally launched with depth1 flag
         Node(
             package='realsense2_camera',
             executable='realsense2_camera_node',
             name='realsense2_camera_1',
             output='screen',
-            condition=IfCondition(enable_realsense),
+            condition=IfCondition(enable_depth1),
             parameters=[
                 {'serial_no': realsense1_serial},
                 {'device_type': 'd435'},
@@ -124,13 +133,13 @@ def generate_launch_description():
             ]
         ),
         
-        # RealSense camera 2 - conditionally launched
+        # RealSense camera 2 - conditionally launched with depth2 flag
         Node(
             package='realsense2_camera',
             executable='realsense2_camera_node',
             name='realsense2_camera_2',
             output='screen',
-            condition=IfCondition(enable_realsense),
+            condition=IfCondition(enable_depth2),
             parameters=[
                 {'serial_no': realsense2_serial},
                 {'device_type': 'd435'},
