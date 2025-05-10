@@ -4,12 +4,12 @@ var port = "9090"; // Port of webserver node
 
 // Automatically use the current hostname if we're not on localhost or using file protocol
 if (
-  window.location.protocol !== "file:" &&
-  window.location.hostname !== "localhost" &&
-  window.location.hostname !== "127.0.0.1"
+    window.location.protocol !== "file:" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
 ) {
-  ip = window.location.hostname;
-  console.log("Using hostname for ROS connection:", ip);
+    ip = window.location.hostname;
+    console.log("Using hostname for ROS connection:", ip);
 }
 
 var url_string = `ws://${ip}:${port}`;
@@ -20,268 +20,268 @@ var activeControllerElements = new Set(); // Track active controller elements
 
 // Connect to and set up ros bridge
 var ros = new ROSLIB.Ros({
-  url: url_string,
+    url: url_string,
 });
 
 ros.on("connection", function () {
-  console.log("Connected to ROSBridge!");
+    console.log("Connected to ROSBridge!");
 
-  var connectionStatus = new ROSLIB.Message({
-    data: 0,
-  });
+    var connectionStatus = new ROSLIB.Message({
+        data: 0,
+    });
 
-  // Update UI to show connected
-  document.getElementById("ros-status").classList.remove("disconnected");
-  document.getElementById("ros-status").classList.add("connected");
-  document.getElementById("ros-status-text").textContent = "Connected";
+    // Update UI to show connected
+    document.getElementById("ros-status").classList.remove("disconnected");
+    document.getElementById("ros-status").classList.add("connected");
+    document.getElementById("ros-status-text").textContent = "Connected";
 
-  setInterval(() => connectionTopic.publish(connectionStatus), 250);
+    setInterval(() => connectionTopic.publish(connectionStatus), 250);
 
-  // Fetch parameters when connected
-  fetchParameters();
+    // Fetch parameters when connected
+    fetchParameters();
 });
 
 ros.on("error", function (error) {
-  console.log("Error connecting to ROSBridge:", error);
-  document.getElementById("ros-status").classList.remove("connected");
-  document.getElementById("ros-status").classList.add("disconnected");
-  document.getElementById("ros-status-text").textContent = "Disconnected";
+    console.log("Error connecting to ROSBridge:", error);
+    document.getElementById("ros-status").classList.remove("connected");
+    document.getElementById("ros-status").classList.add("disconnected");
+    document.getElementById("ros-status-text").textContent = "Disconnected";
 });
 
 ros.on("close", function () {
-  document.getElementById("ros-status").classList.remove("connected");
-  document.getElementById("ros-status").classList.add("disconnected");
-  document.getElementById("ros-status-text").textContent = "Disconnected";
-  setTimeout(() => ros.connect(url_string), 5000); // Retry connection every 5000 ms
+    document.getElementById("ros-status").classList.remove("connected");
+    document.getElementById("ros-status").classList.add("disconnected");
+    document.getElementById("ros-status-text").textContent = "Disconnected";
+    setTimeout(() => ros.connect(url_string), 5000); // Retry connection every 5000 ms
 });
 
 // Define topics
 var connectionTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/connection_status",
-  messageType: "std_msgs/Byte",
+    ros: ros,
+    name: "/connection_status",
+    messageType: "std_msgs/Byte",
 });
 var axisTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/gamepad_axis",
-  messageType: "std_msgs/Int8MultiArray",
+    ros: ros,
+    name: "/controller_parser/gamepad_axis",
+    messageType: "std_msgs/Int8MultiArray",
 });
 var buttonTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/gamepad_button",
-  messageType: "std_msgs/Int8MultiArray",
+    ros: ros,
+    name: "/controller_parser/gamepad_button",
+    messageType: "std_msgs/Int8MultiArray",
 });
 
 // Camera image topics
 var imageTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/compressed_image",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/compressed_image",
+    messageType: "std_msgs/String",
 });
 var rs1ColorTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/rs1_color_image",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/rs1_color_image",
+    messageType: "std_msgs/String",
 });
 var rs1DepthTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/rs1_depth_image",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/rs1_depth_image",
+    messageType: "std_msgs/String",
 });
 var rs2ColorTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/rs2_color_image",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/rs2_color_image",
+    messageType: "std_msgs/String",
 });
 var rs2DepthTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/rs2_depth_image",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/rs2_depth_image",
+    messageType: "std_msgs/String",
 });
 
 // Diagnostic topics
 var controllerDiagTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/diag",
-  messageType: "diagnostic_msgs/DiagnosticStatus",
+    ros: ros,
+    name: "/controller_parser/diag",
+    messageType: "diagnostic_msgs/DiagnosticStatus",
 });
 var i2cDiagTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/i2c_node/diag",
-  messageType: "diagnostic_msgs/DiagnosticStatus",
+    ros: ros,
+    name: "/i2c_node/diag",
+    messageType: "diagnostic_msgs/DiagnosticStatus",
 });
 
 // Topic for I2C command history from controller_parser only
 var controllerI2CHistoryTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/controller_parser/i2c_history",
-  messageType: "std_msgs/String",
+    ros: ros,
+    name: "/controller_parser/i2c_history",
+    messageType: "std_msgs/String",
 });
 
 // Parameters
 // Replace the incorrect ros.getParams function with proper ROSLIB parameter fetching
 function fetchParameters() {
-  // Get a list of all parameters
-  var getParamNamesClient = new ROSLIB.Service({
-    ros: ros,
-    name: "/controller_parser/get_parameters/belt_speed_index",
-    serviceType: "rosapi/GetParamNames",
-  });
+    // Get a list of all parameters
+    var getParamNamesClient = new ROSLIB.Service({
+        ros: ros,
+        name: "/controller_parser/get_parameters/belt_speed_index",
+        serviceType: "rosapi/GetParamNames",
+    });
 
-  getParamNamesClient.callService(
-    new ROSLIB.ServiceRequest({}),
-    function (result) {
-      console.log(result);
-      const paramNames = result;
-      let params = {};
-      let fetchedCount = 0;
+    getParamNamesClient.callService(
+        new ROSLIB.ServiceRequest({}),
+        function (result) {
+            console.log(result);
+            const paramNames = result;
+            let params = {};
+            let fetchedCount = 0;
 
-      // For each parameter name, get its value
-      paramNames.forEach(function (paramName) {
-        var param = new ROSLIB.Param({
-          ros: ros,
-          name: paramName,
-        });
+            // For each parameter name, get its value
+            paramNames.forEach(function (paramName) {
+                var param = new ROSLIB.Param({
+                    ros: ros,
+                    name: paramName,
+                });
 
-        param.get(function (value) {
-          params[paramName] = value;
-          fetchedCount++;
+                param.get(function (value) {
+                    params[paramName] = value;
+                    fetchedCount++;
 
-          // When all parameters are fetched, display them
-          if (fetchedCount === paramNames.length) {
-            const formattedParams = JSON.stringify(params, null, 2);
-            document.getElementById(
-              "params-display"
-            ).innerHTML = `<pre>${formattedParams}</pre>`;
-          }
-        });
-      });
-    }
-  );
+                    // When all parameters are fetched, display them
+                    if (fetchedCount === paramNames.length) {
+                        const formattedParams = JSON.stringify(params, null, 2);
+                        document.getElementById(
+                            "params-display"
+                        ).innerHTML = `<pre>${formattedParams}</pre>`;
+                    }
+                });
+            });
+        }
+    );
 }
 
 // Subscribe to topics
 imageTopic.subscribe(function (message) {
-  document.getElementById("video_out").src =
-    "data:image/jpeg;base64," + message.data;
+    document.getElementById("video_out").src =
+        "data:image/jpeg;base64," + message.data;
 });
 
 // Subscribe to RealSense camera topics
 rs1ColorTopic.subscribe(function (message) {
-  document.getElementById("rs1_color").src =
-    "data:image/jpeg;base64," + message.data;
+    document.getElementById("rs1_color").src =
+        "data:image/jpeg;base64," + message.data;
 });
 
 rs1DepthTopic.subscribe(function (message) {
-  document.getElementById("rs1_depth").src =
-    "data:image/png;base64," + message.data;
+    document.getElementById("rs1_depth").src =
+        "data:image/jpeg;base64," + message.data;
 });
 
 rs2ColorTopic.subscribe(function (message) {
-  document.getElementById("rs2_color").src =
-    "data:image/jpeg;base64," + message.data;
+    document.getElementById("rs2_color").src =
+        "data:image/jpeg;base64," + message.data;
 });
 
 rs2DepthTopic.subscribe(function (message) {
-  document.getElementById("rs2_depth").src =
-    "data:image/png;base64," + message.data;
+    document.getElementById("rs2_depth").src =
+        "data:image/jpeg;base64," + message.data;
 });
 
 axisTopic.subscribe(function (message) {
-  // Format axis data in a more readable way
-  if (Array.isArray(message.data)) {
-    const axisNames = [
-      "Left X",
-      "Left Y",
-      "Right X",
-      "Right Y",
-      "LT",
-      "RT",
-      "DPad X",
-      "DPad Y",
-    ];
-    let formattedData = "";
+    // Format axis data in a more readable way
+    if (Array.isArray(message.data)) {
+        const axisNames = [
+            "Left X",
+            "Left Y",
+            "Right X",
+            "Right Y",
+            "LT",
+            "RT",
+            "DPad X",
+            "DPad Y",
+        ];
+        let formattedData = "";
 
-    for (let i = 0; i < message.data.length; i++) {
-      const axisName = i < axisNames.length ? axisNames[i] : `Axis ${i}`;
-      formattedData += `${axisName}: ${message.data[i]}\n`;
+        for (let i = 0; i < message.data.length; i++) {
+            const axisName = i < axisNames.length ? axisNames[i] : `Axis ${i}`;
+            formattedData += `${axisName}: ${message.data[i]}\n`;
+        }
+
+        document.getElementById("axis-display").innerHTML = formattedData;
+    } else {
+        document.getElementById("axis-display").innerHTML = message.data;
     }
-
-    document.getElementById("axis-display").innerHTML = formattedData;
-  } else {
-    document.getElementById("axis-display").innerHTML = message.data;
-  }
 });
 
 buttonTopic.subscribe(function (message) {
-  // Format button data in a more readable way
-  if (Array.isArray(message.data)) {
-    const buttonNames = [
-      "A",
-      "B",
-      "X",
-      "Y",
-      "LB",
-      "RB",
-      "Back",
-      "Start",
-      "LS",
-      "RS",
-    ];
-    let formattedData = "";
+    // Format button data in a more readable way
+    if (Array.isArray(message.data)) {
+        const buttonNames = [
+            "A",
+            "B",
+            "X",
+            "Y",
+            "LB",
+            "RB",
+            "Back",
+            "Start",
+            "LS",
+            "RS",
+        ];
+        let formattedData = "";
 
-    for (let i = 0; i < message.data.length; i++) {
-      const buttonName =
-        i < buttonNames.length ? buttonNames[i] : `Button ${i}`;
-      const value = message.data[i];
-      formattedData += `${buttonName}: ${value}\n`;
+        for (let i = 0; i < message.data.length; i++) {
+            const buttonName =
+                i < buttonNames.length ? buttonNames[i] : `Button ${i}`;
+            const value = message.data[i];
+            formattedData += `${buttonName}: ${value}\n`;
+        }
+
+        document.getElementById("button-display").innerHTML = formattedData;
+    } else {
+        document.getElementById("button-display").innerHTML = message.data;
     }
-
-    document.getElementById("button-display").innerHTML = formattedData;
-  } else {
-    document.getElementById("button-display").innerHTML = message.data;
-  }
 });
 
 controllerDiagTopic.subscribe(function (message) {
-  document.getElementById("controller_diag").innerHTML = message.message;
+    document.getElementById("controller_diag").innerHTML = message.message;
 });
 
 i2cDiagTopic.subscribe(function (message) {
-  document.getElementById("i2c_diag").innerHTML = message.message;
+    document.getElementById("i2c_diag").innerHTML = message.message;
 });
 
 // Subscribe to I2C command history topic from controller_parser only
 controllerI2CHistoryTopic.subscribe(function (message) {
-  updateI2CCommandHistory(message.data);
+    updateI2CCommandHistory(message.data);
 });
 
 // Function to update I2C command history display
 function updateI2CCommandHistory(dataStr) {
-  try {
-    const data = JSON.parse(dataStr);
-    const historyPanel = document.getElementById("i2c_command_history");
+    try {
+        const data = JSON.parse(dataStr);
+        const historyPanel = document.getElementById("i2c_command_history");
 
-    // Clear the panel if it contains the waiting message
-    if (historyPanel.querySelector(".text-muted")) {
-      historyPanel.innerHTML = "";
-    }
+        // Clear the panel if it contains the waiting message
+        if (historyPanel.querySelector(".text-muted")) {
+            historyPanel.innerHTML = "";
+        }
 
-    // Sort devices by address to maintain consistent order
-    const addresses = Object.keys(data).sort(
-      (a, b) => parseInt(a) - parseInt(b)
-    );
+        // Sort devices by address to maintain consistent order
+        const addresses = Object.keys(data).sort(
+            (a, b) => parseInt(a) - parseInt(b)
+        );
 
-    // Generate HTML for each device
-    let htmlContent = "";
+        // Generate HTML for each device
+        let htmlContent = "";
 
-    addresses.forEach((address) => {
-      const device = data[address];
-      const deviceName = device.device_name || "Unknown Device";
-      const lastCommand = device.last_command || "";
-      const timestamp = device.timestamp || "";
+        addresses.forEach((address) => {
+            const device = data[address];
+            const deviceName = device.device_name || "Unknown Device";
+            const lastCommand = device.last_command || "";
+            const timestamp = device.timestamp || "";
 
-      htmlContent += `
+            htmlContent += `
             <div class="i2c-item">
                 <div class="d-flex justify-content-between">
                     <strong>${deviceName}</strong>
@@ -292,279 +292,283 @@ function updateI2CCommandHistory(dataStr) {
                     <span class="ms-2">${lastCommand}</span>
                 </div>
             </div>`;
-    });
+        });
 
-    // Update the panel content if we have new data
-    if (htmlContent) {
-      historyPanel.innerHTML = htmlContent;
+        // Update the panel content if we have new data
+        if (htmlContent) {
+            historyPanel.innerHTML = htmlContent;
+        }
+    } catch (e) {
+        console.error("Error parsing I2C history data:", e);
     }
-  } catch (e) {
-    console.error("Error parsing I2C history data:", e);
-  }
 }
 
 // Connect gamepad
 window.addEventListener("gamepadconnected", function (e) {
-  console.log("Gamepad connected!");
-  controllerConnected = true;
+    console.log("Gamepad connected!");
+    controllerConnected = true;
 
-  // Update UI to show controller connected
-  document.getElementById("controller-status").classList.remove("disconnected");
-  document.getElementById("controller-status").classList.add("connected");
-  document.getElementById("controller-status-text").textContent = "Connected";
+    // Update UI to show controller connected
+    document
+        .getElementById("controller-status")
+        .classList.remove("disconnected");
+    document.getElementById("controller-status").classList.add("connected");
+    document.getElementById("controller-status-text").textContent = "Connected";
 
-  setInterval(readControllerData, 75); // Read from controller every 75 ms
+    setInterval(readControllerData, 75); // Read from controller every 75 ms
 });
 
 // Listen for gamepad disconnection
 window.addEventListener("gamepaddisconnected", function (e) {
-  console.log("Gamepad disconnected!");
-  controllerConnected = false;
+    console.log("Gamepad disconnected!");
+    controllerConnected = false;
 
-  // Update UI to show controller disconnected
-  document.getElementById("controller-status").classList.remove("connected");
-  document.getElementById("controller-status").classList.add("disconnected");
-  document.getElementById("controller-status-text").textContent =
-    "Disconnected";
+    // Update UI to show controller disconnected
+    document.getElementById("controller-status").classList.remove("connected");
+    document.getElementById("controller-status").classList.add("disconnected");
+    document.getElementById("controller-status-text").textContent =
+        "Disconnected";
 });
 
 // Function to update the controller mapping highlight
 function updateControllerHighlights(elements) {
-  // Reset all highlights
-  document.querySelectorAll(".controller-mapping-row").forEach((row) => {
-    row.classList.remove("table-primary");
-  });
+    // Reset all highlights
+    document.querySelectorAll(".controller-mapping-row").forEach((row) => {
+        row.classList.remove("table-primary");
+    });
 
-  // Apply highlights to active elements
-  elements.forEach((element) => {
-    const row = document.getElementById(`mapping-${element}`);
-    if (row) {
-      row.classList.add("table-primary");
-    }
-  });
+    // Apply highlights to active elements
+    elements.forEach((element) => {
+        const row = document.getElementById(`mapping-${element}`);
+        if (row) {
+            row.classList.add("table-primary");
+        }
+    });
 }
 
 // Function to update controller value displays in the mapping table
 function updateControllerValues(gamepad) {
-  // Update button values
-  if (gamepad.buttons) {
-    // Standard button mapping
-    updateControlValueElement(
-      "button-a",
-      gamepad.buttons[0].value > 0
-        ? Math.round(gamepad.buttons[0].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-b",
-      gamepad.buttons[1].value > 0
-        ? Math.round(gamepad.buttons[1].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-x",
-      gamepad.buttons[2].value > 0
-        ? Math.round(gamepad.buttons[2].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-y",
-      gamepad.buttons[3].value > 0
-        ? Math.round(gamepad.buttons[3].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-lb",
-      gamepad.buttons[4].value > 0
-        ? Math.round(gamepad.buttons[4].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-rb",
-      gamepad.buttons[5].value > 0
-        ? Math.round(gamepad.buttons[5].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-lt",
-      gamepad.buttons[6].value > 0
-        ? Math.round(gamepad.buttons[6].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-rt",
-      gamepad.buttons[7].value > 0
-        ? Math.round(gamepad.buttons[7].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-back",
-      gamepad.buttons[8].value > 0
-        ? Math.round(gamepad.buttons[8].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-start",
-      gamepad.buttons[9].value > 0
-        ? Math.round(gamepad.buttons[9].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-ls",
-      gamepad.buttons[10].value > 0
-        ? Math.round(gamepad.buttons[10].value * 100)
-        : 0
-    );
-    updateControlValueElement(
-      "button-rs",
-      gamepad.buttons[11].value > 0
-        ? Math.round(gamepad.buttons[11].value * 100)
-        : 0
-    );
-  }
-
-  // Update axis values
-  if (gamepad.axes) {
-    updateControlValueElement(
-      "left-stick-x",
-      Math.round(gamepad.axes[0] * 100)
-    );
-    updateControlValueElement(
-      "left-stick-y",
-      Math.round(gamepad.axes[1] * 100)
-    );
-    updateControlValueElement(
-      "right-stick-x",
-      Math.round(gamepad.axes[2] * 100)
-    );
-    updateControlValueElement(
-      "right-stick-y",
-      Math.round(gamepad.axes[3] * 100)
-    );
-
-    // DPad values
-    if (Math.abs(gamepad.axes[6]) > 0) {
-      if (gamepad.axes[6] < 0) {
+    // Update button values
+    if (gamepad.buttons) {
+        // Standard button mapping
         updateControlValueElement(
-          "dpad-left",
-          Math.abs(Math.round(gamepad.axes[6] * 100))
+            "button-a",
+            gamepad.buttons[0].value > 0
+                ? Math.round(gamepad.buttons[0].value * 100)
+                : 0
         );
-        updateControlValueElement("dpad-right", 0);
-      } else {
         updateControlValueElement(
-          "dpad-right",
-          Math.round(gamepad.axes[6] * 100)
+            "button-b",
+            gamepad.buttons[1].value > 0
+                ? Math.round(gamepad.buttons[1].value * 100)
+                : 0
         );
-        updateControlValueElement("dpad-left", 0);
-      }
-    } else {
-      updateControlValueElement("dpad-left", 0);
-      updateControlValueElement("dpad-right", 0);
+        updateControlValueElement(
+            "button-x",
+            gamepad.buttons[2].value > 0
+                ? Math.round(gamepad.buttons[2].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-y",
+            gamepad.buttons[3].value > 0
+                ? Math.round(gamepad.buttons[3].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-lb",
+            gamepad.buttons[4].value > 0
+                ? Math.round(gamepad.buttons[4].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rb",
+            gamepad.buttons[5].value > 0
+                ? Math.round(gamepad.buttons[5].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-lt",
+            gamepad.buttons[6].value > 0
+                ? Math.round(gamepad.buttons[6].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rt",
+            gamepad.buttons[7].value > 0
+                ? Math.round(gamepad.buttons[7].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-back",
+            gamepad.buttons[8].value > 0
+                ? Math.round(gamepad.buttons[8].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-start",
+            gamepad.buttons[9].value > 0
+                ? Math.round(gamepad.buttons[9].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-ls",
+            gamepad.buttons[10].value > 0
+                ? Math.round(gamepad.buttons[10].value * 100)
+                : 0
+        );
+        updateControlValueElement(
+            "button-rs",
+            gamepad.buttons[11].value > 0
+                ? Math.round(gamepad.buttons[11].value * 100)
+                : 0
+        );
     }
 
-    if (Math.abs(gamepad.axes[7]) > 0) {
-      if (gamepad.axes[7] < 0) {
+    // Update axis values
+    if (gamepad.axes) {
         updateControlValueElement(
-          "dpad-up",
-          Math.abs(Math.round(gamepad.axes[7] * 100))
+            "left-stick-x",
+            Math.round(gamepad.axes[0] * 100)
         );
-        updateControlValueElement("dpad-down", 0);
-      } else {
         updateControlValueElement(
-          "dpad-down",
-          Math.round(gamepad.axes[7] * 100)
+            "left-stick-y",
+            Math.round(gamepad.axes[1] * 100)
         );
-        updateControlValueElement("dpad-up", 0);
-      }
-    } else {
-      updateControlValueElement("dpad-up", 0);
-      updateControlValueElement("dpad-down", 0);
+        updateControlValueElement(
+            "right-stick-x",
+            Math.round(gamepad.axes[2] * 100)
+        );
+        updateControlValueElement(
+            "right-stick-y",
+            Math.round(gamepad.axes[3] * 100)
+        );
+
+        // DPad values
+        if (Math.abs(gamepad.axes[6]) > 0) {
+            if (gamepad.axes[6] < 0) {
+                updateControlValueElement(
+                    "dpad-left",
+                    Math.abs(Math.round(gamepad.axes[6] * 100))
+                );
+                updateControlValueElement("dpad-right", 0);
+            } else {
+                updateControlValueElement(
+                    "dpad-right",
+                    Math.round(gamepad.axes[6] * 100)
+                );
+                updateControlValueElement("dpad-left", 0);
+            }
+        } else {
+            updateControlValueElement("dpad-left", 0);
+            updateControlValueElement("dpad-right", 0);
+        }
+
+        if (Math.abs(gamepad.axes[7]) > 0) {
+            if (gamepad.axes[7] < 0) {
+                updateControlValueElement(
+                    "dpad-up",
+                    Math.abs(Math.round(gamepad.axes[7] * 100))
+                );
+                updateControlValueElement("dpad-down", 0);
+            } else {
+                updateControlValueElement(
+                    "dpad-down",
+                    Math.round(gamepad.axes[7] * 100)
+                );
+                updateControlValueElement("dpad-up", 0);
+            }
+        } else {
+            updateControlValueElement("dpad-up", 0);
+            updateControlValueElement("dpad-down", 0);
+        }
     }
-  }
 }
 
 // Helper function to update an individual control value in the mapping table
 function updateControlValueElement(controlId, value) {
-  const valueElement = document.querySelector(
-    `.controller-value[data-control="${controlId}"]`
-  );
-  if (valueElement) {
-    const absValue = Math.abs(value);
-    if (absValue === 0) {
-      valueElement.textContent = "-";
-      valueElement.classList.remove("text-primary", "fw-bold");
-    } else {
-      valueElement.textContent = value;
-      valueElement.classList.add("text-primary", "fw-bold");
+    const valueElement = document.querySelector(
+        `.controller-value[data-control="${controlId}"]`
+    );
+    if (valueElement) {
+        const absValue = Math.abs(value);
+        if (absValue === 0) {
+            valueElement.textContent = "-";
+            valueElement.classList.remove("text-primary", "fw-bold");
+        } else {
+            valueElement.textContent = value;
+            valueElement.classList.add("text-primary", "fw-bold");
+        }
     }
-  }
 }
 
 // Function to be called every time the controlled is read from
 function readControllerData() {
-  var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
+    var gamepad = navigator.getGamepads()[0]; // Assuming the first connected gamepad
 
-  if (gamepad == undefined) {
-    return;
-  }
+    if (gamepad == undefined) {
+        return;
+    }
 
-  if (!ros.isConnected) {
-    return;
-  }
+    if (!ros.isConnected) {
+        return;
+    }
 
-  gamepad_axis = gamepad.axes.map((axis) => parseInt(axis.toFixed(2) * 100));
-  gamepad_button = gamepad.buttons.map(
-    (button) => (button.value = parseInt(button.value.toFixed(2) * 100))
-  );
-
-  // Track active controller elements
-  activeControllerElements.clear();
-
-  // Check axes
-  if (Math.abs(gamepad_axis[0]) > 10)
-    activeControllerElements.add("left-stick-x");
-  if (Math.abs(gamepad_axis[1]) > 10)
-    activeControllerElements.add("left-stick-y");
-  if (Math.abs(gamepad_axis[2]) > 10)
-    activeControllerElements.add("right-stick-x");
-  if (Math.abs(gamepad_axis[3]) > 10)
-    activeControllerElements.add("right-stick-y");
-  if (Math.abs(gamepad_axis[6]) > 0)
-    activeControllerElements.add(
-      gamepad_axis[6] < 0 ? "dpad-left" : "dpad-right"
+    gamepad_axis = gamepad.axes.map((axis) => parseInt(axis.toFixed(2) * 100));
+    gamepad_button = gamepad.buttons.map(
+        (button) => (button.value = parseInt(button.value.toFixed(2) * 100))
     );
-  if (Math.abs(gamepad_axis[7]) > 0)
-    activeControllerElements.add(gamepad_axis[7] < 0 ? "dpad-up" : "dpad-down");
 
-  // Check buttons (standard mapping)
-  if (gamepad_button[0] > 0) activeControllerElements.add("button-a");
-  if (gamepad_button[1] > 0) activeControllerElements.add("button-b");
-  if (gamepad_button[2] > 0) activeControllerElements.add("button-x");
-  if (gamepad_button[3] > 0) activeControllerElements.add("button-y");
-  if (gamepad_button[4] > 0) activeControllerElements.add("button-lb");
-  if (gamepad_button[5] > 0) activeControllerElements.add("button-rb");
-  if (gamepad_button[6] > 0) activeControllerElements.add("button-lt");
-  if (gamepad_button[7] > 0) activeControllerElements.add("button-rt");
-  if (gamepad_button[8] > 0) activeControllerElements.add("button-back");
-  if (gamepad_button[9] > 0) activeControllerElements.add("button-start");
-  if (gamepad_button[10] > 0) activeControllerElements.add("button-ls");
-  if (gamepad_button[11] > 0) activeControllerElements.add("button-rs");
+    // Track active controller elements
+    activeControllerElements.clear();
 
-  // Update highlights in the UI
-  updateControllerHighlights(activeControllerElements);
+    // Check axes
+    if (Math.abs(gamepad_axis[0]) > 10)
+        activeControllerElements.add("left-stick-x");
+    if (Math.abs(gamepad_axis[1]) > 10)
+        activeControllerElements.add("left-stick-y");
+    if (Math.abs(gamepad_axis[2]) > 10)
+        activeControllerElements.add("right-stick-x");
+    if (Math.abs(gamepad_axis[3]) > 10)
+        activeControllerElements.add("right-stick-y");
+    if (Math.abs(gamepad_axis[6]) > 0)
+        activeControllerElements.add(
+            gamepad_axis[6] < 0 ? "dpad-left" : "dpad-right"
+        );
+    if (Math.abs(gamepad_axis[7]) > 0)
+        activeControllerElements.add(
+            gamepad_axis[7] < 0 ? "dpad-up" : "dpad-down"
+        );
 
-  // Update value displays in the mapping table
-  updateControllerValues(gamepad);
+    // Check buttons (standard mapping)
+    if (gamepad_button[0] > 0) activeControllerElements.add("button-a");
+    if (gamepad_button[1] > 0) activeControllerElements.add("button-b");
+    if (gamepad_button[2] > 0) activeControllerElements.add("button-x");
+    if (gamepad_button[3] > 0) activeControllerElements.add("button-y");
+    if (gamepad_button[4] > 0) activeControllerElements.add("button-lb");
+    if (gamepad_button[5] > 0) activeControllerElements.add("button-rb");
+    if (gamepad_button[6] > 0) activeControllerElements.add("button-lt");
+    if (gamepad_button[7] > 0) activeControllerElements.add("button-rt");
+    if (gamepad_button[8] > 0) activeControllerElements.add("button-back");
+    if (gamepad_button[9] > 0) activeControllerElements.add("button-start");
+    if (gamepad_button[10] > 0) activeControllerElements.add("button-ls");
+    if (gamepad_button[11] > 0) activeControllerElements.add("button-rs");
 
-  var axisData = new ROSLIB.Message({
-    data: gamepad_axis,
-  });
+    // Update highlights in the UI
+    updateControllerHighlights(activeControllerElements);
 
-  axisTopic.publish(axisData);
+    // Update value displays in the mapping table
+    updateControllerValues(gamepad);
 
-  var buttonData = new ROSLIB.Message({
-    data: gamepad_button,
-  });
+    var axisData = new ROSLIB.Message({
+        data: gamepad_axis,
+    });
 
-  buttonTopic.publish(buttonData);
+    axisTopic.publish(axisData);
+
+    var buttonData = new ROSLIB.Message({
+        data: gamepad_button,
+    });
+
+    buttonTopic.publish(buttonData);
 }

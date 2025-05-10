@@ -439,7 +439,7 @@ class ControllerParser(Node):
     
     def rs1_depth_translator(self, message: Image) -> None:
         """
-        Convert RealSense 1 depth image to uncompressed base64 strings for web transmission.
+        Convert RealSense 1 depth image to compressed base64 strings for web transmission.
         
         Args:
             message: The Image message from the RealSense 1 depth camera
@@ -454,8 +454,9 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Encode as PNG (lossless) instead of JPEG (lossy)
-            _, encoded_img = cv2.imencode('.png', cv_image_colormap)
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, [cv2.IMWRITE_JPEG_QUALITY, quality])
             
             # Convert to base64 and publish
             base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
@@ -486,7 +487,7 @@ class ControllerParser(Node):
     
     def rs2_depth_translator(self, message: Image) -> None:
         """
-        Convert RealSense 2 depth image to uncompressed base64 strings for web transmission.
+        Convert RealSense 2 depth image to compressed base64 strings for web transmission.
         
         Args:
             message: The Image message from the RealSense 2 depth camera
@@ -501,8 +502,9 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Encode as PNG (lossless) instead of JPEG (lossy)
-            _, encoded_img = cv2.imencode('.png', cv_image_colormap)
+            # Compress image using JPEG
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, [cv2.IMWRITE_JPEG_QUALITY, quality])
             
             # Convert to base64 and publish
             base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
