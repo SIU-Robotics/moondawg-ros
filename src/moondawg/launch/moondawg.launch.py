@@ -32,17 +32,17 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'enable_usb',
-            default_value='false',
+            default_value='true',
             description='Enable or disable the USB camera'
         ),
         DeclareLaunchArgument(
             'enable_depth1',
-            default_value='false',
+            default_value='true',
             description='Enable or disable the first RealSense depth camera'
         ),
         DeclareLaunchArgument(
             'enable_depth2',
-            default_value='false',
+            default_value='true',
             description='Enable or disable the second RealSense depth camera'
         ),
         DeclareLaunchArgument(
