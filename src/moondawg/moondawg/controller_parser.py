@@ -232,25 +232,25 @@ class ControllerParser(Node):
         # RealSense camera subscriptions
         self.rs1_color_subscription = self.create_subscription(
             Image, 
-            '/camera1/color/image_raw', 
+            '/camera/realsense2_camera_1/color/image_raw', 
             self.rs1_color_translator, 
             10
         )
         self.rs1_depth_subscription = self.create_subscription(
             Image, 
-            '/camera1/aligned_depth_to_color/image_raw', 
+            '/camera/realsense2_camera_1/depth/image_rect_raw', 
             self.rs1_depth_translator, 
             10
         )
         self.rs2_color_subscription = self.create_subscription(
             Image, 
-            '/camera2/color/image_raw', 
+            '/camera/realsense2_camera_2/color/image_raw', 
             self.rs2_color_translator, 
             10
         )
         self.rs2_depth_subscription = self.create_subscription(
             Image, 
-            '/camera2/aligned_depth_to_color/image_raw', 
+            '/camera/realsense2_camera_2/depth/image_rect_raw', 
             self.rs2_depth_translator, 
             10
         )
