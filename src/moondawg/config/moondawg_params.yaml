@@ -2,27 +2,32 @@
 # This file contains parameters that can be adjusted without recompiling
 
 controller_parser:
-    # Joystick control parameters
-    joystick_deadzone: 0.1
-    turn_sensitivity: 0.5
+  # Joystick control parameters
+  joystick_deadzone: 0.1
+  turn_sensitivity: 0.5
 
-    # Belt speeds (from fastest to slowest)
-    belt_speeds: [180, 125, 120]
+  # Belt speeds (from fastest to slowest)
+  belt_speeds: [180, 125, 120]
 
-    # Camera settings
-    image_compression_quality: 20
+  # Camera settings
+  image_compression_quality: 20
+  image_resize_width: 640
+  image_resize_height: 480
+  image_frame_rate: 15
+  adaptive_quality: true
+  use_webp: true # Using WebP format for better compression and lower bandwidth usage
 
-    # Autonomous operation
-    auto_dig_duration_seconds: 30
+  # Autonomous operation
+  auto_dig_duration_seconds: 30
 
 i2c_node:
-    bus_id: 1
-    heartbeat_interval: 1.0
-    command_timeout: 5.0
+  bus_id: 1
+  heartbeat_interval: 1.0
+  command_timeout: 5.0
 
 serial_node:
-    port: "/dev/ttyACM0"
-    baudrate: 9600
-    timeout: 1.0
-    write_timeout: 1.0
-    retry_interval: 5.0
+  port: "/dev/ttyACM0"
+  baudrate: 9600
+  timeout: 1.0
+  write_timeout: 1.0
+  retry_interval: 5.0
