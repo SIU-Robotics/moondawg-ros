@@ -151,9 +151,8 @@ class ControllerParser(Node):
         self.declare_parameter('joystick_deadzone', 0.07)
         # Image processing parameters
         self.declare_parameter('image_compression_quality', 20)
-        self.declare_parameter('image_resize_width', 640)  # New parameter for image width
-        self.declare_parameter('image_resize_height', 480)  # New parameter for image height
-        self.declare_parameter('image_frame_rate', 15)  # New parameter for frame rate control
+        # Removed resize parameters to use native resolution
+        self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
         self.declare_parameter('adaptive_quality', True)  # Enable/disable adaptive quality
         self.declare_parameter('use_webp', True)  # Use WebP instead of JPEG when True
         self.declare_parameter('auto_dig_duration_seconds', 30)
@@ -422,12 +421,6 @@ class ControllerParser(Node):
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message)
             
-            # Resize image before compression to reduce bandwidth
-            resize_width = self.get_parameter('image_resize_width').get_parameter_value().integer_value
-            resize_height = self.get_parameter('image_resize_height').get_parameter_value().integer_value
-            if resize_width > 0 and resize_height > 0:
-                cv_image = cv2.resize(cv_image, (resize_width, resize_height), interpolation=cv2.INTER_AREA)
-                
             # Use adaptive quality if enabled
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
             
@@ -483,12 +476,6 @@ class ControllerParser(Node):
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
             
-            # Resize image before compression to reduce bandwidth
-            resize_width = self.get_parameter('image_resize_width').get_parameter_value().integer_value
-            resize_height = self.get_parameter('image_resize_height').get_parameter_value().integer_value
-            if resize_width > 0 and resize_height > 0:
-                cv_image = cv2.resize(cv_image, (resize_width, resize_height), interpolation=cv2.INTER_AREA)
-                
             # Use adaptive quality if enabled
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
             
@@ -550,12 +537,6 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Resize image before compression to reduce bandwidth
-            resize_width = self.get_parameter('image_resize_width').get_parameter_value().integer_value
-            resize_height = self.get_parameter('image_resize_height').get_parameter_value().integer_value
-            if resize_width > 0 and resize_height > 0:
-                cv_image_colormap = cv2.resize(cv_image_colormap, (resize_width, resize_height), interpolation=cv2.INTER_AREA)
-                
             # Use adaptive quality if enabled (depth images can use lower quality)
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
             
@@ -603,12 +584,6 @@ class ControllerParser(Node):
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
             
-            # Resize image before compression to reduce bandwidth
-            resize_width = self.get_parameter('image_resize_width').get_parameter_value().integer_value
-            resize_height = self.get_parameter('image_resize_height').get_parameter_value().integer_value
-            if resize_width > 0 and resize_height > 0:
-                cv_image = cv2.resize(cv_image, (resize_width, resize_height), interpolation=cv2.INTER_AREA)
-                
             # Use adaptive quality if enabled
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
             
@@ -670,12 +645,6 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Resize image before compression to reduce bandwidth
-            resize_width = self.get_parameter('image_resize_width').get_parameter_value().integer_value
-            resize_height = self.get_parameter('image_resize_height').get_parameter_value().integer_value
-            if resize_width > 0 and resize_height > 0:
-                cv_image_colormap = cv2.resize(cv_image_colormap, (resize_width, resize_height), interpolation=cv2.INTER_AREA)
-                
             # Use adaptive quality if enabled (depth images can use lower quality)
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
             
@@ -796,7 +765,6 @@ class ControllerParser(Node):
             fr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
         # If r_x_f is 0 (or within deadzone), axis_callback handles stopping motors.
 
     def _handle_trigger_drive(self, trigger_y_norm: float, stick_x_norm: float, stick_y_norm: float, stick_active_for_steering: bool) -> None:

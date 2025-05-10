@@ -11,8 +11,7 @@ controller_parser:
 
   # Camera settings
   image_compression_quality: 20
-  image_resize_width: 640
-  image_resize_height: 480
+  # Removed image_resize_width and image_resize_height to use native camera resolution
   image_frame_rate: 15
   adaptive_quality: true
   use_webp: true # Using WebP format for better compression and lower bandwidth usage

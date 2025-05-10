@@ -102,8 +102,7 @@ def generate_launch_description():
             condition=IfCondition(enable_usb_camera),
             parameters=[
                 {'device': camera_device},
-                {'width': 640},
-                {'height': 480},
+                # Using native resolution
                 {'fps': 15.0}
             ]
         ),
@@ -120,10 +119,7 @@ def generate_launch_description():
                 {'device_type': 'd435'},
                 {'enable_color': True},
                 {'enable_depth': True},
-                {'depth_width': 640},
-                {'depth_height': 480},
-                {'color_width': 640},
-                {'color_height': 480},
+                # Using native resolution - removing fixed size
                 {'depth_fps': 15.0},
                 {'color_fps': 15.0},
                 {'filters': 'pointcloud'},
@@ -145,10 +141,7 @@ def generate_launch_description():
                 {'device_type': 'd435'},
                 {'enable_color': True},
                 {'enable_depth': True},
-                {'depth_width': 640},
-                {'depth_height': 480},
-                {'color_width': 640},
-                {'color_height': 480},
+                # Using native resolution - removing fixed size
                 {'depth_fps': 15.0},
                 {'color_fps': 15.0},
                 {'filters': 'pointcloud'},
