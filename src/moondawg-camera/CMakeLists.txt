@@ -15,6 +15,8 @@ find_package(diagnostic_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 
+include_directories(include)
+
 add_library(
   moondawg_camera_component
   SHARED
