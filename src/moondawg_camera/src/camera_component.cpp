@@ -7,10 +7,12 @@
 #include <string>
 #include <sstream>
 
-// OpenCV and cv_bridge includes were in image_compression_node.cpp, now needed here
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-// cv_bridge is included via camera_node.hpp
+// OpenCV and cv_bridge includes
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+#include "rclcpp_components/register_node_macro.hpp"
 
 namespace moondawg
 {
@@ -131,14 +133,11 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
         cv::Mat resized;
         cv::resize(cv_image_ptr->image, resized, cv::Size(new_width, new_height), 0, 0, cv::INTER_NEAREST);
         
-        // Update the image message
+        // Update the image, no need to convert back and forth
         cv_image_ptr->image = resized;
-        auto new_msg = cv_image_ptr->toImageMsg();
-        cv_image_ptr = cv_bridge::toCvShare(new_msg, encoding);
-        if (!cv_image_ptr) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to convert downsampled image");
-            return;
-        }
+        
+        // Process the downsampled image directly
+        cv::Mat processed_cv_image;
         
         cv::Mat processed_cv_image;
         if (is_depth_image) {
@@ -198,13 +197,8 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
                 setDiagnosticStatus(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Depth image channel error");
                 return;
              }
-        }
-        
-        // Use fixed range normalization instead of NORM_MINMAX for optimization
-        double min_val = 0;
+        }            // Convert directly to 8-bit using a fixed range
         double max_val = 10000; // Adjust this based on your depth camera range
-        
-        // Convert directly to 8-bit using a fixed range
         single_channel_image.convertTo(normalized_image, CV_8U, 255.0 / max_val);
         
         // Use a faster colormap for depth visualization
@@ -318,7 +312,6 @@ bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std
 
       size_t i = 0, j = 0;
       unsigned char char_array_3[3];
-      unsigned char char_array_4[4];
 
       for (i = 0; (i + 2) < buffer.size(); i += 3) {
           char_array_3[0] = buffer[i];
