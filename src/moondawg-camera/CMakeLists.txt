@@ -14,17 +14,15 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
+message(STATUS "cv_bridge_INCLUDE_DIRS: ${cv_bridge_INCLUDE_DIRS}")
+message(STATUS "cv_bridge_LIBRARIES: ${cv_bridge_LIBRARIES}")
 find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
+message(STATUS "OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV_LIBRARIES: ${OpenCV_LIBRARIES}")
 
-# Include directories
-include_directories(
-  include
-  ${OpenCV_INCLUDE_DIRS}
-  # cv_bridge include directories are typically handled by ament_target_dependencies
-  # but can be added explicitly if needed, e.g.:
-  # ${cv_bridge_INCLUDE_DIRS}
-)
+# Include directories for the current package's headers
+include_directories(include)
 
 # Camera Node Component
 add_library(camera_node_component SHARED
@@ -38,9 +36,6 @@ ament_target_dependencies(camera_node_component
   std_msgs
   sensor_msgs
   diagnostic_msgs
-  # cv_bridge # No longer directly used by camera_node for processing
-  # image_transport # No longer directly used by camera_node for processing
-  # OpenCV # No longer directly used by camera_node for processing
 )
 rclcpp_components_register_nodes(camera_node_component "moondawg::CameraNode")
 
@@ -50,24 +45,30 @@ add_library(image_compression_node_component SHARED
 )
 target_compile_definitions(image_compression_node_component
   PRIVATE "COMPOSITION_BUILDING_DLL")
+
+# This should handle include directories and linking for all listed dependencies.
 ament_target_dependencies(image_compression_node_component
   rclcpp
   rclcpp_components
   std_msgs
   sensor_msgs
   diagnostic_msgs
-  cv_bridge
-  image_transport # Though not explicitly image_transport::Publisher, cv_bridge needs it.
+  cv_bridge       # This is crucial for finding <cv_bridge/cv_bridge.h>
+  image_transport
   OpenCV
 )
-# Add include directories for dependencies like cv_bridge and OpenCV
-# It's generally better to use target_include_directories for modern CMake
+
+# Add this package's own include directory to the target,
+# so it can find its own .hpp files (like image_compression_node.hpp from image_compression_node.cpp)
+# and so that other packages linking to this component can find its .hpp files.
 target_include_directories(image_compression_node_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-  ${cv_bridge_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
 )
+
+# Explicit target_link_libraries for cv_bridge and OpenCV are removed
+# as ament_target_dependencies should handle this.
+
 rclcpp_components_register_nodes(image_compression_node_component "moondawg::ImageCompressionNode")
 
 install(TARGETS
