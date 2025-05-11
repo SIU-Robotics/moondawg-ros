@@ -29,7 +29,8 @@ def generate_launch_description():
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
     adaptive_quality = LaunchConfiguration('adaptive_quality', default='true')
-    use_webp = LaunchConfiguration('use_webp', default='true')
+    use_webp = LaunchConfiguration('use_webp', default='false')
+    image_resize_factor = LaunchConfiguration('image_resize_factor', default='0.5')
     auto_dig_duration_seconds = LaunchConfiguration('auto_dig_duration_seconds', default='30')
     belt_speed_index = LaunchConfiguration('belt_speed_index', default='0')
     
@@ -112,8 +113,13 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'use_webp',
-            default_value='true',
+            default_value='false',
             description='Use WebP format for image compression'
+        ),
+        DeclareLaunchArgument(
+            'image_resize_factor',
+            default_value='0.5',
+            description='Resize factor for images (0.5 = half size)'
         ),
         DeclareLaunchArgument(
             'auto_dig_duration_seconds',
@@ -214,6 +220,7 @@ def generate_launch_description():
                 {'image_frame_rate': image_frame_rate},
                 {'adaptive_quality': adaptive_quality},
                 {'use_webp': use_webp},
+                {'image_resize_factor': image_resize_factor},
                 {'auto_dig_duration_seconds': auto_dig_duration_seconds},
                 {'belt_speed_index': belt_speed_index},
                 {'belt_speeds': [180, 125, 120]},  # You can also make this configurable if needed
