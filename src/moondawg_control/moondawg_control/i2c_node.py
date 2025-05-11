@@ -1,5 +1,5 @@
 import time
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 import rclpy
 from rclpy.lifecycle import Node
 from std_msgs.msg import String

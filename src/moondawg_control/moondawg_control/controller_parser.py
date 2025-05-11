@@ -2,11 +2,7 @@ from math import ceil, atan2, degrees, hypot
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int8MultiArray, String, Byte
-from sensor_msgs.msg import Image
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
-from cv_bridge import CvBridge
-import cv2
-import base64
 import datetime
 import json
 from typing import Tuple, Union, Dict, List, Any
@@ -84,18 +80,9 @@ class ControllerParser(Node):
 
     def _init_state_variables(self) -> None:
         """Initialize all state variables for the node."""
-        # Component state
-        self.belt_speeds = [180, 150, 120]  # Default values that will be overwritten by parameter
-        self.belt_speed_index = 0
-        
         # Connection state
         self.connection_time = 0
         self.connected = False
-        
-        # Autonomy state
-        self.time_start = 0
-        self.depositing = False
-        self.digging = False
         
         # Controller button states - initialized to prevent None comparisons
         self.dpad_up = 0
@@ -119,10 +106,7 @@ class ControllerParser(Node):
         self.current_ltrigger = 0
         self.current_rtrigger = 0
         
-        # Bridge for camera processing
-        self.br = CvBridge()
-        
-        # Track last I2C commands sent to each address
+        # Track last commands sent to each address
         self.i2c_command_history = {}
         
         # Track steering positions for condensed display
@@ -147,11 +131,7 @@ class ControllerParser(Node):
 
     def _declare_parameters(self) -> None:
         """Declare all ROS parameters for this node."""
-        self.declare_parameter('belt_speed_index', 0)
         self.declare_parameter('joystick_deadzone', 0.07)
-        self.declare_parameter('image_compression_quality', 20)
-        self.declare_parameter('auto_dig_duration_seconds', 30)
-        self.declare_parameter('belt_speeds', [180, 125, 120])
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
@@ -164,11 +144,6 @@ class ControllerParser(Node):
         self.i2c_publisher = self.create_publisher(
             String, 
             '/i2c_node/command', 
-            10
-        )
-        self.image_pub = self.create_publisher(
-            String, 
-            '/controller_parser/compressed_image', 
             10
         )
         
@@ -198,16 +173,9 @@ class ControllerParser(Node):
             self.button_callback, 
             10
         )
-        self.image_subscription = self.create_subscription(
-            Image, 
-            'image', 
-            self.image_translator, 
-            10
-        )
         
         # Timers
         self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
-        self.auto_timer = self.create_timer(0.5, self.auto_callback)
         
         # Add a timer to publish I2C command history periodically
         self.i2c_history_timer = self.create_timer(0.5, self.publish_i2c_history)
@@ -283,13 +251,6 @@ class ControllerParser(Node):
             self.current_ltrigger = buttons.get('ltrigger', 0)
             self.current_rtrigger = buttons.get('rtrigger', 0)
             
-            # Check if we should toggle autonomous mode
-            self._check_auto_toggle(buttons)
-            
-            # If in autonomous mode, don't process manual controls
-            if self.digging:
-                return
-            
             # Process manual control inputs
             self._process_belt_controls(buttons)
             self._process_misc_controls(buttons)
@@ -299,72 +260,6 @@ class ControllerParser(Node):
                 DiagnosticStatus.ERROR, 
                 f"Exception in gamepad button callback: {str(e)}"
             )
-
-    def auto_callback(self) -> None:
-        """
-        Manage the autonomous digging sequence.
-        
-        This function is called on a timer and manages the state machine
-        for the autonomous digging sequence.
-        """
-        if not self.digging:
-            if self.time_start != 0:
-                # Cleanup when ending autonomous mode
-                self.set_diagnostic_status(
-                    DiagnosticStatus.OK, 
-                    "Dig autonomy subroutine finished"
-                )
-                self.time_start = 0
-                # Stop belt
-                self._stop_belt()
-                # Reset belt position
-                self._set_belt_position(UP)
-            return
-            
-        # Initialize the timer if this is the start of the sequence
-        if self.time_start == 0:
-            self.time_start = datetime.datetime.now()
-            self.set_diagnostic_status(
-                DiagnosticStatus.OK, 
-                "Running dig autonomy subroutine"
-            )
-            
-        # Calculate elapsed time and run the appropriate sequence step
-        elapsed_seconds = ceil((datetime.datetime.now() - self.time_start).total_seconds())
-        
-        if elapsed_seconds < 3:
-            # Phase 1: Lower belt
-            self._set_belt_position(DOWN)
-        elif 3 <= elapsed_seconds < 5:
-            # Phase 2: Start belt
-            self._start_belt()
-        elif 17 <= elapsed_seconds < 19:
-            # Phase 3: Raise belt
-            self._set_belt_position(UP)
-        elif elapsed_seconds >= 30:
-            # Phase 4: Complete sequence
-            self.digging = False
-
-    def image_translator(self, message: Image) -> None:
-        """
-        Convert ROS Image messages to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message)
-            
-            # Compress image using JPEG
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            _, encoded_img = cv2.imencode('.jpg', cv_image, [cv2.IMWRITE_JPEG_QUALITY, quality])
-            
-            # Convert to base64 and publish
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            self.image_pub.publish(String(data=base64_data))
-        except Exception as e:
-            self.get_logger().error(f"Error processing camera image: {str(e)}")
 
     def heartbeat(self) -> None:
         """
@@ -434,13 +329,11 @@ class ControllerParser(Node):
         speed_magnitude_factor = abs(r_x_f)
         speed_offset = int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * speed_magnitude_factor)
 
+        self._set_steering_angle(1, 45)  # Front Left
+        self._set_steering_angle(2, 135)   # Front Right
+        self._set_steering_angle(3, 135)  # Rear Left (angling right for clockwise)
+        self._set_steering_angle(4, 45)   # Rear Right (angling left for clockwise)
         if r_x_f > 0:  # Clockwise rotation
-            # Angles: FL points inward-right, FR inward-left, RL inward-right, RR inward-left
-            self._set_steering_angle(1, 135)  # Front Left
-            self._set_steering_angle(2, 45)   # Front Right
-            self._set_steering_angle(3, 135)  # Rear Left (angling right for clockwise)
-            self._set_steering_angle(4, 45)   # Rear Right (angling left for clockwise)
-
             # Speeds for clockwise: Left wheels forward, Right wheels reverse
             fl_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             fr_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
@@ -449,18 +342,11 @@ class ControllerParser(Node):
             self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
 
         elif r_x_f < 0:  # Counter-clockwise rotation
-            # Angles: FL points inward-left, FR inward-right, RL inward-left, RR inward-right
-            self._set_steering_angle(1, 45)   # Front Left
-            self._set_steering_angle(2, 135)  # Front Right
-            self._set_steering_angle(3, 45)   # Rear Left (angling left for CCW)
-            self._set_steering_angle(4, 135)  # Rear Right (angling right for CCW)
-
             # Speeds for counter-clockwise: Left wheels reverse, Right wheels forward
             fl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             fr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
-            self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
         # If r_x_f is 0 (or within deadzone), axis_callback handles stopping motors.
 
     def _handle_trigger_drive(self, trigger_y_norm: float, stick_x_norm: float, stick_y_norm: float, stick_active_for_steering: bool) -> None:
@@ -516,20 +402,6 @@ class ControllerParser(Node):
 
     # ------------------- Button processing functions -------------------
 
-    def _check_auto_toggle(self, buttons: Dict[str, Any]) -> None:
-        """
-        Check if autonomous mode should be toggled.
-        
-        Args:
-            buttons: Dictionary of button states
-        """
-        if buttons["select"] != self.select:
-            self.select = buttons["select"]
-            if self.select:
-                self.digging = not self.digging
-                mode = "started" if self.digging else "stopped"
-                self.get_logger().info(f"Autonomous digging {mode}")
-
     def _process_belt_controls(self, buttons: Dict[str, Any]) -> None:
         """
         Process belt-related button inputs.
@@ -537,14 +409,6 @@ class ControllerParser(Node):
         Args:
             buttons: Dictionary of button states
         """
-        # Y button cycles belt speeds
-        if buttons["button_y"] != self.button_y:
-            if buttons["button_y"]:
-                # Only cycle speeds on button press, not release
-                self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
-                self.get_logger().info(f"Belt speed set to level {self.belt_speed_index+1}/{len(self.belt_speeds)}")
-            self.button_y = buttons["button_y"]
-
         # B button => belt reverse, or off
         if buttons["button_b"] != self.button_b:
             self.button_b = buttons["button_b"]
@@ -569,12 +433,11 @@ class ControllerParser(Node):
             else:
                 self._set_belt_position(MOTOR_STOPPED)
 
-        # Left bumper => belt forward (with current speed index)
+        # Left bumper => belt forward
         if buttons["lbutton"] != self.lbutton:
             self.lbutton = buttons["lbutton"]
             if self.lbutton:
-                speed = self.belt_speeds[self.belt_speed_index]
-                self._set_belt_speed(speed)
+                self._set_belt_speed(MOTOR_FULL_FORWARD)
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
 

@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'moondawg'
+package_name = 'moondawg_control'
 
 setup(
     name=package_name,
@@ -18,7 +18,6 @@ setup(
     install_requires=[
         'setuptools',
         'smbus2',
-        'pyserial',
         'opencv-python',
     ],
     zip_safe=True,
@@ -29,9 +28,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'controller_parser = moondawg.controller_parser:main',
-            'i2c_node = moondawg.i2c_node:main',
-            # 'serial_node = moondawg.serial_node:main',
+            'controller_parser = moondawg_control.controller_parser:main',
+            'i2c_node = moondawg_control.i2c_node:main',
         ],
     },
     classifiers=[
