@@ -53,6 +53,7 @@ add_executable(camera_node
 )
 target_link_libraries(camera_node
   camera_node_component
+  ${OpenCV_LIBS}
 )
 install(TARGETS
   camera_node
