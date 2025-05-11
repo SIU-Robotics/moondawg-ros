@@ -22,7 +22,7 @@ add_library(
 )
 ament_target_dependencies(
   moondawg_camera_component
-  "rclpp"
+  "rclcpp"
   "rclcpp_components"
   "std_msgs"
   "sensor_msgs"
