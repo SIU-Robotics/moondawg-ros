@@ -159,25 +159,6 @@ def generate_launch_description():
             ]
         )
     ]
-    
-    # --- MOONDAWG NODES ---
-    
-    # Camera Node (Relay/Diagnostic - might be removed if not needed)
-    # This node is now much simpler.
-    # camera_node = Node(
-    #     package='moondawg_camera',
-    #     executable='camera_node', # This would be if it was a standalone exe
-    #     name='camera_node_relay',
-    #     output='screen',
-    #     parameters=[{
-    #         'use_intra_process_comms': True,
-    #     }]
-    # )
-
-    # --- REAL SENSE NODES ---
-    # Assuming realsense-ros package is installed and provides these nodes
-    # These are standard ways to launch realsense nodes.
-    # Adjust parameters (serial_no, topics) as needed.
 
     realsense_node_1 = Node(
         package='realsense2_camera',
@@ -264,7 +245,7 @@ def generate_launch_description():
             # Compression for RealSense 1 Color
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::ImageCompressionNode',
+                plugin='moondawg::CameraComponent',
                 name='rs1_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
@@ -281,7 +262,7 @@ def generate_launch_description():
             # Compression for RealSense 1 Depth
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::ImageCompressionNode',
+                plugin='moondawg::CameraComponent',
                 name='rs1_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality, # Depth might need different quality
@@ -299,7 +280,7 @@ def generate_launch_description():
             # Compression for RealSense 2 Color
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::ImageCompressionNode',
+                plugin='moondawg::CameraComponent',
                 name='rs2_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
@@ -316,7 +297,7 @@ def generate_launch_description():
             # Compression for RealSense 2 Depth
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::ImageCompressionNode',
+                plugin='moondawg::CameraComponent',
                 name='rs2_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,

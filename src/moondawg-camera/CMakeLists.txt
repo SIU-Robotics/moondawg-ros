@@ -42,7 +42,7 @@ ament_target_dependencies(
 )
 rclcpp_components_register_nodes(
   moondawg_camera_component
-  "moondawg_camera::CameraComponent"
+  "moondawg::CameraComponent"
 )
 
 ament_package()
