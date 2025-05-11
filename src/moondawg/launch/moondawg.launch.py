@@ -28,8 +28,7 @@ def generate_launch_description():
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
-    adaptive_quality = LaunchConfiguration('adaptive_quality', default='true')
-    max_image_width = LaunchConfiguration('max_image_width', default='640')
+    max_image_width = LaunchConfiguration('max_image_width', default='420')
     auto_dig_duration_seconds = LaunchConfiguration('auto_dig_duration_seconds', default='30')
     belt_speed_index = LaunchConfiguration('belt_speed_index', default='0')
     
@@ -104,11 +103,6 @@ def generate_launch_description():
             'image_frame_rate',
             default_value='15',
             description='Frame rate for image processing'
-        ),
-        DeclareLaunchArgument(
-            'adaptive_quality',
-            default_value='true',
-            description='Enable adaptive quality for image compression'
         ),
         DeclareLaunchArgument(
             'max_image_width',
@@ -212,7 +206,6 @@ def generate_launch_description():
                 {'turn_sensitivity': turn_sensitivity},
                 {'image_compression_quality': image_compression_quality},
                 {'image_frame_rate': image_frame_rate},
-                {'adaptive_quality': adaptive_quality},
                 {'max_image_width': max_image_width},
                 {'auto_dig_duration_seconds': auto_dig_duration_seconds},
                 {'belt_speed_index': belt_speed_index},

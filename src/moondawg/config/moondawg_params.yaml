@@ -13,7 +13,6 @@ controller_parser:
   image_compression_quality: 15
   max_image_width: 640 # Maximum width for images (aspect ratio maintained)
   image_frame_rate: 15
-  adaptive_quality: true
 
   # Autonomous operation
   auto_dig_duration_seconds: 30

@@ -152,7 +152,6 @@ class ControllerParser(Node):
         # Image processing parameters
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
-        self.declare_parameter('adaptive_quality', True)  # Enable/disable adaptive quality
         self.declare_parameter('max_image_width', 640)  # Maximum width for images, aspect ratio maintained
         self.declare_parameter('auto_dig_duration_seconds', 30)
         self.declare_parameter('belt_speeds', [180, 125, 120])
@@ -434,35 +433,8 @@ class ControllerParser(Node):
                 interpolation = cv2.INTER_NEAREST if is_depth else cv2.INTER_AREA
                 cv_image = cv2.resize(cv_image, (new_width, new_height), interpolation=interpolation)
             
-            # Use adaptive quality if enabled
+            # Use a fixed quality value
             quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            adaptive_quality = self.get_parameter('adaptive_quality').get_parameter_value().bool_value
-            
-            # For depth images, we can typically use lower quality settings
-            if adaptive_quality:
-                if is_depth:
-                    quality = max(5, quality - 8)  # Lower quality is fine for depth images
-                else:
-                    # Calculate image complexity only if needed - this is a CPU-intensive operation
-                    # Use a small downsampled image for faster complexity calculation
-                    sample_img = cv_image
-                    if cv_image.shape[0] > 240 or cv_image.shape[1] > 320:
-                        sample_img = cv2.resize(cv_image, (320, 240), interpolation=cv2.INTER_AREA)
-                    
-                    # Convert to grayscale for Laplacian
-                    if len(sample_img.shape) == 3 and sample_img.shape[2] == 3:  # Only if color image
-                        gray = cv2.cvtColor(sample_img, cv2.COLOR_BGR2GRAY)
-                    else:
-                        gray = sample_img
-                        
-                    # Use faster variance calculation
-                    variance = cv2.Laplacian(gray, cv2.CV_8U).var()
-                    
-                    # Adjust quality based on complexity
-                    if variance < 50:  # Low complexity/detail image
-                        quality = max(5, quality - 15)
-                    elif variance > 200:  # High complexity/detail image
-                        quality = min(40, quality + 5)
             
             # Always use JPEG encoding
             _, encoded_img = cv2.imencode('.jpg', cv_image, 
