@@ -23,9 +23,11 @@ def generate_launch_description():
     # Controller parser parameters
     joystick_deadzone = LaunchConfiguration('joystick_deadzone', default='0.1')
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
+    # Image processing parameters are now mostly per-compression-node
+    # General quality/framerate can still be launch args if desired for all compression nodes
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
-    max_image_width = LaunchConfiguration('max_image_width', default='530')
+    max_image_width = LaunchConfiguration('max_image_width', default='640') # Corrected default from 530
     
     # Declare launch arguments so they can be passed on the command line
     args = [
@@ -101,8 +103,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'max_image_width',
-            default_value='530',
-            description='Maximum width for images (aspect ratio maintained)'
+            default_value='640', # Corrected default
+            description='Maximum width for processed images, aspect ratio maintained'
         ),
     ]
     
@@ -158,72 +160,188 @@ def generate_launch_description():
         )
     ]
     
-    # Define the camera composition container with intra-process communication
-    camera_container = ComposableNodeContainer(
-        name='camera_container',
+    # --- MOONDAWG NODES ---
+    
+    # Camera Node (Relay/Diagnostic - might be removed if not needed)
+    # This node is now much simpler.
+    # camera_node = Node(
+    #     package='moondawg_camera',
+    #     executable='camera_node', # This would be if it was a standalone exe
+    #     name='camera_node_relay',
+    #     output='screen',
+    #     parameters=[{
+    #         'use_intra_process_comms': True,
+    #     }]
+    # )
+
+    # --- REAL SENSE NODES ---
+    # Assuming realsense-ros package is installed and provides these nodes
+    # These are standard ways to launch realsense nodes.
+    # Adjust parameters (serial_no, topics) as needed.
+
+    realsense_node_1 = Node(
+        package='realsense2_camera',
+        executable='realsense2_camera_node',
+        namespace='camera1',
+        name='realsense_camera1',
+        parameters=[{
+            'serial_no': realsense1_serial,
+            'enable_color': True,
+            'enable_depth': True,
+            # Add other realsense specific parameters here
+            # e.g., image resolutions, frame rates for the camera hardware itself
+            'color_width': 640, 'color_height': 480, 'color_fps': 30,
+            'depth_width': 640, 'depth_height': 480, 'depth_fps': 30,
+            'clip_distance': 3.0, # Example: Clip depth at 3 meters
+            'allow_no_texture_points': True,
+            'pointcloud.enable': False, # Disable pointcloud if not used by compression
+        }],
+        output='screen',
+        condition=IfCondition(enable_depth1) # Or a more specific enable flag
+    )
+
+    realsense_node_2 = Node(
+        package='realsense2_camera',
+        executable='realsense2_camera_node',
+        namespace='camera2',
+        name='realsense_camera2',
+        parameters=[{
+            'serial_no': realsense2_serial,
+            'enable_color': True,
+            'enable_depth': True,
+            'color_width': 640, 'color_height': 480, 'color_fps': 30,
+            'depth_width': 640, 'depth_height': 480, 'depth_fps': 30,
+            'clip_distance': 3.0,
+            'allow_no_texture_points': True,
+            'pointcloud.enable': False,
+        }],
+        output='screen',
+        condition=IfCondition(enable_depth2) # Or a more specific enable flag
+    )
+    
+    # --- USB CAMERA NODE ---
+    # Standard USB camera node
+    usb_camera_node = Node(
+        package='usb_cam', # Assuming usb_cam package
+        executable='usb_cam_node_exe', # often usb_cam_node or usb_cam_node_exe
+        name='usb_camera',
+        parameters=[{
+            'video_device': camera_device,
+            'image_width': 640, # Configure USB cam params
+            'image_height': 480,
+            'framerate': 30,
+            'pixel_format': 'yuyv2rgb', # or mjpeg
+        }],
+        output='screen',
+        condition=IfCondition(enable_usb_camera)
+    )
+
+    # --- COMPOSABLE NODE CONTAINER FOR IMAGE COMPRESSION ---
+    # All compression nodes will run in this container for efficiency
+    compression_container = ComposableNodeContainer(
+        name='image_compression_container',
+        namespace='',
         package='rclcpp_components',
         executable='component_container',
-        namespace='',
         composable_node_descriptions=[
-            # RealSense camera 1 as a composable node
-            ComposableNode(
-                package='realsense2_camera',
-                plugin='realsense2_camera::RealSenseNodeFactory',
-                name='realsense2_camera_1',
-                condition=IfCondition(enable_depth1),
-                parameters=[
-                    {'serial_no': realsense1_serial},
-                    {'device_type': 'd435'},
-                    {'enable_color': True},
-                    {'enable_depth': True},
-                    {'depth_fps': 15.0},
-                    {'color_fps': 15.0},
-                    {'filters': 'pointcloud'},
-                    {'enable_sync': True},
-                    {'align_depth': True},
-                    {'camera_name': 'camera1'},
-                    {'use_intra_process_comms': True}
-                ]
-            ),
-            # RealSense camera 2 as a composable node
-            ComposableNode(
-                package='realsense2_camera',
-                plugin='realsense2_camera::RealSenseNodeFactory',
-                name='realsense2_camera_2',
-                condition=IfCondition(enable_depth2),
-                parameters=[
-                    {'serial_no': realsense2_serial},
-                    {'device_type': 'd456'},
-                    {'enable_color': True},
-                    {'enable_depth': True},
-                    {'depth_fps': 15.0},
-                    {'color_fps': 15.0},
-                    {'filters': 'pointcloud'},
-                    {'enable_sync': True},
-                    {'align_depth': True},
-                    {'camera_name': 'camera2'},
-                    {'use_intra_process_comms': True}
-                ]
-            ),
-            # Camera node for processing the RealSense data
+            # Compression for USB Camera
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::CameraNode',
-                name='camera_node',
-                parameters=[
-                    {'image_compression_quality': image_compression_quality},
-                    {'image_frame_rate': image_frame_rate},
-                    {'max_image_width': max_image_width},
-                    {'debug': debug_mode},
-                    {'use_intra_process_comms': True}
-                ]
-            )
+                plugin='moondawg::ImageCompressionNode',
+                name='usb_camera_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality,
+                    'image_frame_rate': image_frame_rate,
+                    'max_image_width': max_image_width,
+                    'camera_key': 'usb_main_camera',
+                }],
+                remappings=[
+                    ('image_raw', '/usb_camera/image_raw'), # Subscription
+                    ('image_compressed', '/camera_node/compressed_image') # Publication for web UI
+                ],
+                condition=IfCondition(enable_usb_camera)
+            ),
+            # Compression for RealSense 1 Color
+            ComposableNode(
+                package='moondawg_camera',
+                plugin='moondawg::ImageCompressionNode',
+                name='rs1_color_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality,
+                    'image_frame_rate': image_frame_rate,
+                    'max_image_width': max_image_width,
+                    'camera_key': 'rs1_color',
+                }],
+                remappings=[
+                    ('image_raw', '/camera1/color/image_raw'),
+                    ('image_compressed', '/camera_node/rs1_color_image')
+                ],
+                condition=IfCondition(enable_depth1)
+            ),
+            # Compression for RealSense 1 Depth
+            ComposableNode(
+                package='moondawg_camera',
+                plugin='moondawg::ImageCompressionNode',
+                name='rs1_depth_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality, # Depth might need different quality
+                    'image_frame_rate': image_frame_rate,
+                    'max_image_width': max_image_width,
+                    'camera_key': 'rs1_depth',
+                }],
+                remappings=[
+                    # Realsense depth is often 16UC1, ensure ImageCompressionNode handles it (e.g. normalize and colormap)
+                    ('image_raw', '/camera1/depth/image_rect_raw'), 
+                    ('image_compressed', '/camera_node/rs1_depth_image')
+                ],
+                condition=IfCondition(enable_depth1)
+            ),
+            # Compression for RealSense 2 Color
+            ComposableNode(
+                package='moondawg_camera',
+                plugin='moondawg::ImageCompressionNode',
+                name='rs2_color_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality,
+                    'image_frame_rate': image_frame_rate,
+                    'max_image_width': max_image_width,
+                    'camera_key': 'rs2_color',
+                }],
+                remappings=[
+                    ('image_raw', '/camera2/color/image_raw'),
+                    ('image_compressed', '/camera_node/rs2_color_image')
+                ],
+                condition=IfCondition(enable_depth2)
+            ),
+            # Compression for RealSense 2 Depth
+            ComposableNode(
+                package='moondawg_camera',
+                plugin='moondawg::ImageCompressionNode',
+                name='rs2_depth_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality,
+                    'image_frame_rate': image_frame_rate,
+                    'max_image_width': max_image_width,
+                    'camera_key': 'rs2_depth',
+                }],
+                remappings=[
+                    ('image_raw', '/camera2/depth/image_rect_raw'),
+                    ('image_compressed', '/camera_node/rs2_depth_image')
+                ],
+                condition=IfCondition(enable_depth2)
+            ),
         ],
         output='screen',
     )
     
     # Create and return launch description
-    return LaunchDescription(args + regular_nodes + [camera_container])
+    ld = LaunchDescription(args + regular_nodes)
+    ld.add_action(realsense_node_1)
+    ld.add_action(realsense_node_2)
+    ld.add_action(usb_camera_node)
+    ld.add_action(compression_container) # Add the container with compression nodes
+    # ld.add_action(camera_node) # Add the (now simpler) camera_node if still needed
+    return ld
 
 if __name__ == '__main__':
     generate_launch_description()

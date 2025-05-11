@@ -35,30 +35,47 @@ ament_target_dependencies(camera_node_component
   std_msgs
   sensor_msgs
   diagnostic_msgs
-  cv_bridge
-  image_transport
-  OpenCV
+  # cv_bridge # No longer directly used by camera_node for processing
+  # image_transport # No longer directly used by camera_node for processing
+  # OpenCV # No longer directly used by camera_node for processing
 )
 rclcpp_components_register_nodes(camera_node_component "moondawg::CameraNode")
+
+# Image Compression Node Component
+add_library(image_compression_node_component SHARED
+  src/image_compression_node.cpp
+)
+target_compile_definitions(image_compression_node_component
+  PRIVATE "COMPOSITION_BUILDING_DLL")
+ament_target_dependencies(image_compression_node_component
+  rclcpp
+  rclcpp_components
+  std_msgs
+  sensor_msgs
+  diagnostic_msgs
+  cv_bridge
+  image_transport # Though not explicitly image_transport::Publisher, cv_bridge needs it.
+  OpenCV
+)
+rclcpp_components_register_nodes(image_compression_node_component "moondawg::ImageCompressionNode")
+
 install(TARGETS
   camera_node_component
+  image_compression_node_component # Add new component
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
 
-# Camera Node Executable
-add_executable(camera_node
-  src/camera_node_main.cpp
-)
-target_link_libraries(camera_node
-  camera_node_component
-  ${OpenCV_LIBS}
-)
-install(TARGETS
-  camera_node
-  DESTINATION lib/${PROJECT_NAME}
-)
+# Remove linking for the old standalone camera_node executable if it existed
+# target_link_libraries(camera_node
+#   camera_node_component
+#   ${OpenCV_LIBS}
+# )
+# install(TARGETS
+#   camera_node
+#   DESTINATION lib/${PROJECT_NAME}
+# )
 
 # Install include directories
 install(DIRECTORY include/
