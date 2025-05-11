@@ -10,7 +10,7 @@
 // OpenCV and cv_bridge includes
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include "cv_bridge/cv_bridge.hpp"
 
 #include "rclcpp_components/register_node_macro.hpp"
 
