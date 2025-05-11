@@ -160,52 +160,49 @@ def generate_launch_description():
         )
     ]
 
-    realsense_node_1 = Node(
-        package='realsense2_camera',
-        executable='realsense2_camera_node',
-        namespace='realsense',
-        name='camera1',
-        parameters=[{
-            'serial_no': realsense1_serial,
-            'enable_color': True,
-            'enable_depth': True,
-            'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
-            'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
-            'clip_distance': 3.0, # Example: Clip depth at 3 meters
-            'allow_no_texture_points': True,
-            'pointcloud.enable': False, # Disable pointcloud if not used by compression
-        }],
-        output='screen',
-        condition=IfCondition(enable_depth1) # Or a more specific enable flag
-    )
-
-    realsense_node_2 = Node(
-        package='realsense2_camera',
-        executable='realsense2_camera_node',
-        namespace='realsense',
-        name='camera2',
-        parameters=[{
-            'serial_no': realsense2_serial,
-            'enable_color': True,
-            'enable_depth': True,
-            'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
-            'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
-            'clip_distance': 6.0,
-            'allow_no_texture_points': True,
-            'pointcloud.enable': False,
-        }],
-        output='screen',
-        condition=IfCondition(enable_depth2) # Or a more specific enable flag
-    )
-
-    # --- COMPOSABLE NODE CONTAINER FOR IMAGE COMPRESSION ---
-    # All compression nodes will run in this container for efficiency
-    compression_container = ComposableNodeContainer(
-        name='image_compression_container',
+    shared_container = ComposableNodeContainer(
+        name='camera_processing_container',
         namespace='',
         package='rclcpp_components',
         executable='component_container',
+        arguments=['--use-intra-process-comms'],
         composable_node_descriptions=[
+            # RealSense Camera 1
+            ComposableNode(
+                package='realsense2_camera',
+                plugin='realsense2_camera::RealSenseNodeFactory',
+                name='camera1',
+                namespace='realsense',
+                parameters=[{
+                    'serial_no': realsense1_serial,
+                    'enable_color': True,
+                    'enable_depth': True,
+                    'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
+                    'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
+                    'clip_distance': 3.0, # Example: Clip depth at 3 meters
+                    'allow_no_texture_points': True,
+                    'pointcloud.enable': False, # Disable pointcloud if not used by compression
+                }],
+                condition=IfCondition(enable_depth1)
+            ),
+            # RealSense Camera 2
+            ComposableNode(
+                package='realsense2_camera',
+                plugin='realsense2_camera::RealSenseNodeFactory',
+                name='camera2',
+                namespace='realsense',
+                parameters=[{
+                    'serial_no': realsense2_serial,
+                    'enable_color': True,
+                    'enable_depth': True,
+                    'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
+                    'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
+                    'clip_distance': 6.0,
+                    'allow_no_texture_points': True,
+                    'pointcloud.enable': False,
+                }],
+                condition=IfCondition(enable_depth2)
+            ),
             # Compression for USB Camera
             ComposableNode(
                 package='moondawg_camera',
@@ -298,10 +295,7 @@ def generate_launch_description():
     
     # Create and return launch description
     ld = LaunchDescription(args + regular_nodes)
-    ld.add_action(realsense_node_1)
-    ld.add_action(realsense_node_2)
-    ld.add_action(compression_container) # Add the container with compression nodes
-    # ld.add_action(camera_node) # Add the (now simpler) camera_node if still needed
+    ld.add_action(shared_container) # Add the container with compression nodes and RealSense cameras
     return ld
 
 if __name__ == '__main__':
