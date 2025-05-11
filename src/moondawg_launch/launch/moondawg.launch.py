@@ -171,7 +171,7 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.profile': '640x480x15',
+                    'rgb_camera.color_profile': '640x480x15',
                     'depth_module.depth_profile': '640x480x15',
                     'clip_distance': 3.0, # Example: Clip depth at 3 meters
                     'allow_no_texture_points': True,
@@ -193,7 +193,7 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.profile': '640x480x15',
+                    'rgb_camera.color_profile': '640x480x15',
                     'depth_module.depth_profile': '640x480x15',
                     'clip_distance': 6.0,
                     'allow_no_texture_points': True,
