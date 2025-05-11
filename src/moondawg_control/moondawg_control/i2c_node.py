@@ -1,7 +1,7 @@
 import time
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 import rclpy
-from rclpy.node import Node
+from rclpy.lifecycle import Node
 from std_msgs.msg import String
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from smbus2 import SMBus
@@ -48,182 +48,256 @@ class I2CNode(Node):
             message="Initializing I2C node"
         )
         self.diag_pub = self.create_publisher(
-            DiagnosticStatus,
-            'diagnostics',
+            DiagnosticStatus, 
+            '/i2c_node/diag', 
             10
         )
         
         # Command subscriber
         self.create_subscription(
-            String,
-            'i2c_command',
-            self._handle_i2c_command,
+            String, 
+            '/i2c_node/command', 
+            self._command_callback, 
             10
         )
         
-        # Heartbeat timer - regularly publish diagnostic status
-        self.heartbeat_timer = self.create_timer(
-            self.get_parameter('heartbeat_interval').value,
-            self._heartbeat_callback
-        )
+        # Heartbeat timer
+        heartbeat_interval = self.get_parameter('heartbeat_interval').get_parameter_value().double_value
+        self.create_timer(heartbeat_interval, self._heartbeat)
 
     def _initialize_i2c_bus(self) -> None:
         """Initialize the I2C bus connection."""
         try:
-            bus_id = self.get_parameter('bus_id').value
+            bus_id = self.get_parameter('bus_id').get_parameter_value().integer_value
             self._bus = SMBus(bus_id)
-            self.diag_status.message = f"I2C bus {bus_id} connected"
+            self._set_diagnostic_status(
+                DiagnosticStatus.OK, 
+                f"I2C bus {bus_id} open and ready"
+            )
         except Exception as e:
-            self.get_logger().error(f"Failed to initialize I2C bus: {str(e)}")
-            self.diag_status.level = DiagnosticStatus.ERROR
-            self.diag_status.message = f"I2C bus connection failed: {str(e)}"
-        
-        # Publish initial status
-        self.diag_pub.publish(self.diag_status)
+            self._set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                f"Failed to open I2C bus: {str(e)}"
+            )
 
-    def _handle_i2c_command(self, msg: String) -> None:
+    def _command_callback(self, msg: String) -> None:
         """
-        Handle incoming I2C command requests.
+        Process I2C command messages.
         
-        Message format: "address:data" where data can be comma-separated values
-        Example: "0x10:90" to send 90 to address 0x10
-                 "0x20:1,2,3" to send [1,2,3] to address 0x20
+        Format: <address>:<data> where data can be comma-separated values
+        Example: "0x10:90,120" - sends values 90 and 120 to device at address 0x10
+        
+        Args:
+            msg: Command message containing address and data
         """
+        # Update the last command time
+        self._last_command_time = time.time()
+        
         try:
-            # Update last command time
-            self._last_command_time = time.time()
-            
-            # Parse message
-            parts = msg.data.split(':')
-            if len(parts) != 2:
-                raise ValueError(f"Invalid command format: {msg.data}")
+            # Parse the command
+            parts = msg.data.split(':', 1)
+            if len(parts) < 2:
+                self._set_diagnostic_status(
+                    DiagnosticStatus.WARN, 
+                    f"Invalid command format: {msg.data} - should be <address>:<data>"
+                )
+                return
                 
-            # Parse address (hex or decimal)
-            address_str = parts[0].strip()
-            if address_str.startswith('0x'):
-                address = int(address_str, 16)
-            else:
-                address = int(address_str)
+            addr_str, data_str = parts[0], parts[1]
+            
+            # Parse address (supports hex like 0x10 or decimal)
+            try:
+                address = int(addr_str, 0)  # Base 0 allows for hex and decimal
+            except ValueError:
+                self._set_diagnostic_status(
+                    DiagnosticStatus.WARN, 
+                    f"Invalid I2C address format: {addr_str}"
+                )
+                return
                 
             # Parse data
-            data_part = parts[1].strip()
-            if ',' in data_part:
-                # Multiple values
-                data = [int(x.strip()) for x in data_part.split(',')]
+            if ',' in data_str:
+                # Multiple values to send
+                try:
+                    values = [self._parse_value(v) for v in data_str.split(',')]
+                    self._write_i2c_block(address, values)
+                except ValueError as e:
+                    self._set_diagnostic_status(
+                        DiagnosticStatus.WARN, 
+                        f"Invalid data format: {str(e)}"
+                    )
             else:
-                # Single value
-                data = int(data_part)
-            
-            # Write to I2C bus
-            self._write_to_device(address, data)
+                # Single value to send
+                try:
+                    value = self._parse_value(data_str)
+                    self._write_i2c_byte(address, value)
+                except ValueError as e:
+                    self._set_diagnostic_status(
+                        DiagnosticStatus.WARN, 
+                        f"Invalid data format: {str(e)}"
+                    )
+                    
+            # Update stats for this device
+            if address not in self._device_stats:
+                self._device_stats[address] = {
+                    'write_count': 0,
+                    'error_count': 0,
+                }
+                
+            self._device_stats[address]['write_count'] += 1
             
         except Exception as e:
-            self.get_logger().error(f"Error processing I2C command '{msg.data}': {str(e)}")
-            self.diag_status.level = DiagnosticStatus.ERROR
-            self.diag_status.message = f"Command error: {str(e)}"
-            self.diag_pub.publish(self.diag_status)
+            self._set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                f"Error processing I2C command: {str(e)}"
+            )
 
-    def _write_to_device(self, address: int, data: Union[int, List[int]]) -> None:
+    def _parse_value(self, value_str: str) -> int:
         """
-        Write data to an I2C device.
+        Parse a string value to an integer.
+        
+        Args:
+            value_str: String to parse
+            
+        Returns:
+            Parsed integer value
+            
+        Raises:
+            ValueError: If parsing fails
+        """
+        # Try to parse as int (hex or decimal)
+        try:
+            return int(value_str, 0)
+        except ValueError:
+            raise ValueError(f"Cannot parse value: {value_str}")
+
+    def _write_i2c_byte(self, address: int, value: int) -> None:
+        """
+        Write a single byte to an I2C device.
         
         Args:
             address: I2C device address
-            data: Single byte or list of bytes to write
+            value: Byte value to write
         """
         if self._bus is None:
-            raise RuntimeError("I2C bus not initialized")
+            self.get_logger().error(f"Could not write to I2C bus. Would have wrote byte {value} to device {hex(address)}")
+            self._set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                "I2C bus not initialized"
+            )
+            return
             
         try:
-            # Update device stats
-            if address not in self._device_stats:
-                self._device_stats[address] = {
-                    'commands_sent': 0,
-                    'last_command': None,
-                    'last_error': None,
-                    'errors': 0
-                }
-            
-            # Write data
-            if isinstance(data, list):
-                if len(data) == 1:
-                    self._bus.write_byte(address, data[0])
-                else:
-                    self._bus.write_i2c_block_data(address, data[0], data[1:])
-            else:
-                self._bus.write_byte(address, data)
-                
-            # Update stats
-            self._device_stats[address]['commands_sent'] += 1
-            self._device_stats[address]['last_command'] = data
-            
-            self.get_logger().debug(f"Sent to address {hex(address)}: {data}")
-            
+            self._bus.write_byte(address, value)
+            self.get_logger().debug(f"Wrote byte {value} to device {hex(address)}")
         except Exception as e:
-            error_msg = f"I2C write error to {hex(address)}: {str(e)}"
-            self.get_logger().error(error_msg)
-            
-            # Update error stats
-            self._device_stats[address]['errors'] += 1
-            self._device_stats[address]['last_error'] = error_msg
-            
-            # Update diagnostic status
-            self.diag_status.level = DiagnosticStatus.ERROR
-            self.diag_status.message = error_msg
-            self.diag_pub.publish(self.diag_status)
-            
-            # Re-raise for higher level handling
-            raise
+            self._record_error(address, f"Error writing byte {value} to {hex(address)}: {str(e)}")
 
-    def _heartbeat_callback(self) -> None:
+    def _write_i2c_block(self, address: int, values: List[int]) -> None:
         """
-        Regular heartbeat callback - publish diagnostic status.
+        Write a block of data to an I2C device.
         
-        Monitors command timeouts and I2C bus health.
+        Args:
+            address: I2C device address
+            values: List of values to write
         """
-        # Check command timeout
-        time_since_last_cmd = time.time() - self._last_command_time
-        timeout = self.get_parameter('command_timeout').value
-        
-        # Build key-value pairs for all device stats
-        values = []
-        total_errors = 0
-        
-        for addr, stats in self._device_stats.items():
-            addr_hex = hex(addr)
-            values.append(KeyValue(key=f"{addr_hex}_commands", value=str(stats['commands_sent'])))
-            values.append(KeyValue(key=f"{addr_hex}_errors", value=str(stats['errors'])))
-            
-            if stats['last_command'] is not None:
-                if isinstance(stats['last_command'], list):
-                    cmd_str = ','.join(str(x) for x in stats['last_command'])
-                else:
-                    cmd_str = str(stats['last_command'])
-                values.append(KeyValue(key=f"{addr_hex}_last_cmd", value=cmd_str))
-                
-            if stats['last_error'] is not None:
-                values.append(KeyValue(key=f"{addr_hex}_last_error", value=stats['last_error']))
-            
-            total_errors += stats['errors']
-        
-        # Add timing info
-        values.append(KeyValue(key="time_since_command", value=f"{time_since_last_cmd:.1f}s"))
-        
-        # Update diagnostic status
         if self._bus is None:
-            self.diag_status.level = DiagnosticStatus.ERROR
-            self.diag_status.message = "I2C bus not connected"
-        elif time_since_last_cmd > timeout and timeout > 0:
-            self.diag_status.level = DiagnosticStatus.WARN
-            self.diag_status.message = f"No commands for {time_since_last_cmd:.1f}s (timeout: {timeout}s)"
-        elif total_errors > 0:
-            self.diag_status.level = DiagnosticStatus.WARN
-            self.diag_status.message = f"I2C errors: {total_errors}"
-        else:
-            self.diag_status.level = DiagnosticStatus.OK
-            self.diag_status.message = f"I2C bus {self.get_parameter('bus_id').value} operational"
+            self.get_logger().error(f"Could not write to I2C bus. Would have wrote block {values} to device {hex(address)}")
+            self._set_diagnostic_status(
+                DiagnosticStatus.ERROR, 
+                "I2C bus not initialized"
+            )
+            return
+            
+        try:
+            # SMBus protocol requires a command byte followed by data bytes
+            # Use the first byte as the command and the rest as data
+            if len(values) > 1:
+                cmd = values[0]
+                data = values[1:]
+                self._bus.write_i2c_block_data(address, cmd, data)
+                self.get_logger().debug(
+                    f"Wrote block data {data} with command {cmd} to device {hex(address)}"
+                )
+            else:
+                # If only one value, use it as a single byte write
+                self._bus.write_byte(address, values[0])
+                self.get_logger().debug(f"Wrote byte {values[0]} to device {hex(address)}")
+                
+        except Exception as e:
+            self._record_error(address, f"Error writing block {values} to {hex(address)}: {str(e)}")
+
+    def _record_error(self, address: int, message: str) -> None:
+        """
+        Record an error for a specific device address.
         
-        self.diag_status.values = values
+        Args:
+            address: Device address where error occurred
+            message: Error message
+        """
+        # Initialize stats for this device if needed
+        if address not in self._device_stats:
+            self._device_stats[address] = {
+                'write_count': 0,
+                'error_count': 0,
+            }
+            
+        # Update error count
+        self._device_stats[address]['error_count'] += 1
+        
+        # Set diagnostic status
+        self._set_diagnostic_status(
+            DiagnosticStatus.ERROR,
+            message
+        )
+
+    def _set_diagnostic_status(self, level: int, message: str) -> None:
+        """
+        Update diagnostic status and log appropriately.
+        
+        Args:
+            level: Diagnostic level (OK, WARN, ERROR)
+            message: Status message
+        """
+        self.diag_status.level = level
+        self.diag_status.message = message
+        
+        # Update diagnostic values with device statistics
+        self.diag_status.values = []
+        
+        # Add bus information
+        if self._bus is not None:
+            bus_id = self.get_parameter('bus_id').get_parameter_value().integer_value
+            self.diag_status.values.append(KeyValue(key='bus_id', value=str(bus_id)))
+            
+            # Add command statistics
+            cmd_count = sum(stats['write_count'] for stats in self._device_stats.values())
+            error_count = sum(stats['error_count'] for stats in self._device_stats.values())
+            
+            self.diag_status.values.append(KeyValue(key='total_commands', value=str(cmd_count)))
+            self.diag_status.values.append(KeyValue(key='error_count', value=str(error_count)))
+            
+        # Log the message based on severity
+        if level == DiagnosticStatus.ERROR:
+            self.get_logger().error(message)
+        elif level == DiagnosticStatus.WARN:
+            self.get_logger().warn(message)
+        else:
+            self.get_logger().info(message)
+
+    def _heartbeat(self) -> None:
+        """Publish diagnostic status periodically."""
+        # Check how long it's been since last command
+        time_since_last_cmd = time.time() - self._last_command_time
+        command_timeout = self.get_parameter('command_timeout').get_parameter_value().double_value
+        
+        if time_since_last_cmd > command_timeout and len(self._device_stats) > 0:
+            # Only warn if we've received commands before and now they've stopped
+            self.get_logger().debug(
+                f"No I2C commands received in {time_since_last_cmd:.1f}s"
+            )
+            
+        # Publish diagnostic status
         self.diag_pub.publish(self.diag_status)
 
     def destroy_node(self) -> None:
