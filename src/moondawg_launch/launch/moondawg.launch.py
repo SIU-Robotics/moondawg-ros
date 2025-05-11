@@ -25,7 +25,6 @@ def generate_launch_description():
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     # General quality can still be launch args
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
-    max_image_width = LaunchConfiguration('max_image_width', default='640') # Corrected default from 530
     
     # Declare launch arguments so they can be passed on the command line
     args = [
@@ -93,12 +92,7 @@ def generate_launch_description():
             'image_compression_quality',
             default_value='20',
             description='Image compression quality (1-100)'
-        ),
-        DeclareLaunchArgument(
-            'max_image_width',
-            default_value='640', # Corrected default
-            description='Maximum width for processed images, aspect ratio maintained'
-        ),
+        )
     ]
     
     # Define regular nodes (not part of the camera composition)
@@ -134,7 +128,6 @@ def generate_launch_description():
                 {'joystick_deadzone': joystick_deadzone},
                 {'turn_sensitivity': turn_sensitivity},
                 {'image_compression_quality': image_compression_quality},
-                {'max_image_width': max_image_width},
                 {'debug': debug_mode}
             ]
         ),
@@ -171,19 +164,17 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.color_profile': '640x480x15',
-                    'depth_module.depth_profile': '640x480x15',
+                    'rgb_camera.color_profile': '640x360x15',
+                    'depth_module.depth_profile': '640x360x15',
                     'clip_distance': 3.0, # Example: Clip depth at 3 meters
                     'allow_no_texture_points': True,
-                    'pointcloud.enable': False, # Disable pointcloud if not used by compression
-                    'enable_sync': False, # Disable sync for better performance
-                    'align_depth.enable': True, # Align depth to color by default
-                    'filters': '', # Disable any post-processing filters
-                    'depth_fps': 15.0, # Match FPS with profile
-                    'color_fps': 15.0,
-                    'device_type': 'D435', # Explicitly set device type if known
-                    'depth_module.global_time_enabled': False, # Disable for performance
-                    'enable_auto_exposure': True, # Automatic exposure for better quality
+                    'pointcloud.enable': False,
+                    'enable_sync': False,
+                    'align_depth.enable': True,
+                    'filters': '',
+                    'device_type': 'D435',
+                    'depth_module.global_time_enabled': False,
+                    'enable_auto_exposure': True,
                 }],
                 condition=IfCondition(enable_depth1)
             ),
@@ -199,20 +190,17 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.color_profile': '640x480x15',
-                    'depth_module.depth_profile': '640x480x15',
+                    'rgb_camera.color_profile': '640x360x15',
+                    'depth_module.depth_profile': '640x360x15',
                     'clip_distance': 6.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
-                    'enable_sync': False, # Disable sync for better performance
-                    'align_depth.enable': True, # Align depth to color by default
-                    'depth_module.profile': '640x480x15',
-                    'filters': '', # Disable any post-processing filters
-                    'depth_fps': 15.0, # Match FPS with profile
-                    'color_fps': 15.0,
-                    'device_type': 'D456', # Explicitly set device type if known
-                    'depth_module.global_time_enabled': False, # Disable for performance
-                    'enable_auto_exposure': True, # Automatic exposure for better quality
+                    'enable_sync': False,
+                    'align_depth.enable': True,
+                    'filters': '',
+                    'device_type': 'D456',
+                    'depth_module.global_time_enabled': False,
+                    'enable_auto_exposure': True,
                 }],
                 condition=IfCondition(enable_depth2)
             ),
@@ -223,7 +211,6 @@ def generate_launch_description():
                 name='usb_camera_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'max_image_width': max_image_width,
                     'camera_key': 'usb_main_camera',
                 }],
                 remappings=[
@@ -239,7 +226,6 @@ def generate_launch_description():
                 name='rs1_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'max_image_width': max_image_width,
                     'camera_key': 'rs1_color',
                 }],
                 remappings=[
@@ -255,7 +241,6 @@ def generate_launch_description():
                 name='rs1_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality, 
-                    'max_image_width': max_image_width,
                     'camera_key': 'rs1_depth',
                     'is_depth_camera': True,
                     'skip_frames': 1,  # Process every other frame
@@ -276,7 +261,6 @@ def generate_launch_description():
                 name='rs2_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'max_image_width': max_image_width,
                     'camera_key': 'rs2_color',
                 }],
                 remappings=[
@@ -292,7 +276,6 @@ def generate_launch_description():
                 name='rs2_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'max_image_width': max_image_width,
                     'camera_key': 'rs2_depth',
                     'is_depth_camera': True,
                     'skip_frames': 1,  # Process every other frame

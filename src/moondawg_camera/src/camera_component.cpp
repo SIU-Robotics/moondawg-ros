@@ -40,13 +40,11 @@ void CameraComponent::declareParameters()
   this->declare_parameter("use_intra_process_comms", true);
   // Parameters moved from ImageCompressionNode
   this->declare_parameter("image_compression_quality", 20);
-  this->declare_parameter("max_image_width", 640);
   this->declare_parameter("camera_key", "camera"); // Default key
   
   // New parameters for depth image optimization
   this->declare_parameter("is_depth_camera", false);
   this->declare_parameter("skip_frames", 0);  // Skip frames for depth cameras to reduce processing load
-  this->declare_parameter("downsample_before_processing", false);
   this->declare_parameter("use_optimized_encoding", true);
 }
 
@@ -54,13 +52,11 @@ void CameraComponent::setupCommunications()
 {
   use_intra_process_comms_ = this->get_parameter("use_intra_process_comms").as_bool();
   image_compression_quality_ = this->get_parameter("image_compression_quality").as_int();
-  max_image_width_ = this->get_parameter("max_image_width").as_int();
   camera_key_ = this->get_parameter("camera_key").as_string();
   
   // Get optimization parameters
   is_depth_camera_ = this->get_parameter("is_depth_camera").as_bool();
   skip_frames_ = this->get_parameter("skip_frames").as_int();
-  downsample_before_processing_ = this->get_parameter("downsample_before_processing").as_bool();
   use_optimized_encoding_ = this->get_parameter("use_optimized_encoding").as_bool();
   frame_count_ = 0;
   
@@ -117,57 +113,6 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
         message->encoding.find("depth") != std::string::npos) {
         encoding = message->encoding;
         is_depth_image = true;
-    }
-
-    // For depth images, we can downsample early to reduce processing cost
-    if (is_depth_image && downsample_before_processing_ && max_image_width_ > 0 && 
-        message->width > static_cast<uint32_t>(max_image_width_)) {
-        
-        // Calculate downsampling ratio
-        double scale = static_cast<double>(max_image_width_) / message->width;
-        int new_width = max_image_width_;
-        int new_height = static_cast<int>(message->height * scale);
-        
-        // Create downsampled image
-        cv_bridge::CvImagePtr cv_image_ptr = cv_bridge::toCvCopy(message, encoding);
-        cv::Mat resized;
-        cv::resize(cv_image_ptr->image, resized, cv::Size(new_width, new_height), 0, 0, cv::INTER_NEAREST);
-        
-        // Update the image, no need to convert back and forth
-        cv_image_ptr->image = resized;
-                
-        cv::Mat processed_cv_image;
-        if (is_depth_image) {
-            // Optimize depth visualization by using a faster colormap
-            cv::Mat normalized_image;
-            cv::Mat single_channel_image = cv_image_ptr->image;
-            
-            // Ensure single channel for depth processing
-            if (single_channel_image.channels() != 1) {
-                 if (single_channel_image.channels() > 1) {
-                    std::vector<cv::Mat> channels;
-                    cv::split(single_channel_image, channels);
-                    single_channel_image = channels[0];
-                 } else {
-                    RCLCPP_ERROR(this->get_logger(), "Cannot convert multi-channel depth image to single channel for normalization.");
-                    return;
-                 }
-            }
-            
-            // Use faster normalize with fixed range for depth images
-            double max_val = 10000; // Use a fixed range that works for your sensor
-            
-            // Convert to 8-bit for colormap with a fixed range (faster than NORM_MINMAX which has to scan the image)
-            single_channel_image.convertTo(normalized_image, CV_8U, 255.0 / max_val);
-            
-            // Apply colormap - COLORMAP_JET is commonly used for depth, but HOT or RAINBOW might be faster
-            cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_HOT);
-        } else {
-            processed_cv_image = cv_image_ptr->image;
-        }
-        
-        processAndPublishImage(processed_cv_image, image_subscription_->get_topic_name());
-        return;
     }
 
     auto cv_image_ptr = cv_bridge::toCvShare(message, encoding);
@@ -227,18 +172,6 @@ bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std
 
     cv::Mat image_to_process = cv_image;
     
-    // Only clone if we need to resize
-    if (max_image_width_ > 0 && image_to_process.cols > max_image_width_ && !downsample_before_processing_)
-    {
-      image_to_process = cv_image.clone();
-      double aspect_ratio = static_cast<double>(image_to_process.rows) / static_cast<double>(image_to_process.cols);
-      int new_width = max_image_width_;
-      int new_height = static_cast<int>(new_width * aspect_ratio);
-      int interpolation = (cv_image.type() == CV_8UC1 || cv_image.type() == CV_16UC1) ? cv::INTER_NEAREST : cv::INTER_AREA;
-      if (cv_image.channels() == 3) interpolation = cv::INTER_AREA; 
-      cv::resize(image_to_process, image_to_process, cv::Size(new_width, new_height), 0, 0, interpolation);
-    }
-
     std::vector<uchar> buffer;
     
     // Depth images might benefit from different compression parameters
