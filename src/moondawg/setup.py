@@ -30,10 +30,10 @@ setup(
         'console_scripts': [
             'controller_parser = moondawg.controller_parser:main',
             'i2c_node = moondawg.i2c_node:main',
-            'camera_node = moondawg.camera_node:main',
+
         ],
         'rclpy_components': [
-            'moondawg_camera_node = moondawg.camera_node:create_camera_node_component',
+            'moondawg_camera_node = moondawg.camera_node:CameraNode',
         ],
     },
     classifiers=[

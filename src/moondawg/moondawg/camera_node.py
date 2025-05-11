@@ -1,4 +1,3 @@
-import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
@@ -6,8 +5,6 @@ from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
 from cv_bridge import CvBridge
 import cv2
 import base64
-import datetime
-from typing import Dict, Any
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 class CameraNode(Node):
@@ -350,24 +347,3 @@ class CameraNode(Node):
             message = f"Camera node heartbeat - Latency: {latency_summary}"
         
         self.set_diagnostic_status(DiagnosticStatus.OK, message)
-
-def main(args=None):
-    rclpy.init(args=args)
-    
-    camera_node = CameraNode()
-    
-    try:
-        rclpy.spin(camera_node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        camera_node.destroy_node()
-        rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
-
-# Make the node compatible with component loading
-# This function allows the node to be loaded as a component with ROS2 component manager
-def create_camera_node_component():
-    return CameraNode('camera_node')
