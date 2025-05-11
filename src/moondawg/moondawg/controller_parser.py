@@ -2,11 +2,7 @@ from math import ceil, atan2, degrees, hypot
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int8MultiArray, String, Byte
-from sensor_msgs.msg import Image
 from diagnostic_msgs.msg import DiagnosticStatus, KeyValue
-from cv_bridge import CvBridge
-import cv2
-import base64
 import datetime
 import json
 from typing import Tuple, Union, Dict, List, Any
@@ -110,10 +106,7 @@ class ControllerParser(Node):
         self.current_ltrigger = 0
         self.current_rtrigger = 0
         
-        # Bridge for camera processing
-        self.br = CvBridge()
-        
-        # Track last I2C commands sent to each address
+        # Track last commands sent to each address
         self.i2c_command_history = {}
         
         # Track steering positions for condensed display

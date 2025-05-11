@@ -139,56 +139,59 @@
             <!-- Left column with video feed and diagnostics -->
             <div class="col-lg-8 pe-lg-2">
                 <div class="row slim-row">
+                    
+                    <!-- Camera Node Feeds -->
                     <div class="col-md-12">
                         <div class="card mb-2">
                             <div class="card-header d-flex justify-content-between align-items-center p-2">
-                                <h6 class="mb-0">Camera Feeds</h6>
+                                <h6 class="mb-0">Camera Node Feeds</h6>
                             </div>
                             <div class="card-body p-2">
                                 <div class="row">
                                     <!-- USB Camera Feed -->
                                     <div class="col-md-4">
                                         <div class="video-container">
-                                            <img src="novideo.png" id="video_out" class="video-thumbnail"></img>
-                                            <div class="camera-caption">USB Camera</div>
+                                            <img src="novideo.png" id="camera_node_video" class="video-thumbnail"></img>
+                                            <div class="camera-caption">Camera Node - USB</div>
                                         </div>
                                     </div>
                                     
                                     <!-- RealSense 1 Color Feed -->
                                     <div class="col-md-4">
                                         <div class="video-container">
-                                            <img src="novideo.png" id="rs1_color" class="video-thumbnail"></img>
-                                            <div class="camera-caption">RealSense 1 - RGB</div>
+                                            <img src="novideo.png" id="camera_node_rs1_color" class="video-thumbnail"></img>
+                                            <div class="camera-caption">Camera Node - RS1 RGB</div>
                                         </div>
                                     </div>
                                     
                                     <!-- RealSense 1 Depth Feed -->
                                     <div class="col-md-4">
                                         <div class="video-container">
-                                            <img src="novideo.png" id="rs1_depth" class="video-thumbnail"></img>
-                                            <div class="camera-caption">RealSense 1 - Depth</div>
+                                            <img src="novideo.png" id="camera_node_rs1_depth" class="video-thumbnail"></img>
+                                            <div class="camera-caption">Camera Node - RS1 Depth</div>
                                         </div>
                                     </div>
                                     
                                     <!-- RealSense 2 Color Feed -->
                                     <div class="col-md-4">
                                         <div class="video-container">
-                                            <img src="novideo.png" id="rs2_color" class="video-thumbnail"></img>
-                                            <div class="camera-caption">RealSense 2 - RGB</div>
+                                            <img src="novideo.png" id="camera_node_rs2_color" class="video-thumbnail"></img>
+                                            <div class="camera-caption">Camera Node - RS2 RGB</div>
                                         </div>
                                     </div>
                                     
                                     <!-- RealSense 2 Depth Feed -->
                                     <div class="col-md-4">
                                         <div class="video-container">
-                                            <img src="novideo.png" id="rs2_depth" class="video-thumbnail"></img>
-                                            <div class="camera-caption">RealSense 2 - Depth</div>
+                                            <img src="novideo.png" id="camera_node_rs2_depth" class="video-thumbnail"></img>
+                                            <div class="camera-caption">Camera Node - RS2 Depth</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    
                     <div class="col-md-4">
                         <!-- Status and diagnostics -->
                         <div class="card mb-2">
@@ -215,6 +218,13 @@
                             <div class="card-body p-2">
                                 <h6 class="card-title">I2C Diagnostics</h6>
                                 <div class="diagnostic-panel" id="i2c_diag">Waiting for data...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="card controller-card mb-2">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">Camera Node Diagnostics</h6>
+                                <div class="diagnostic-panel" id="camera_node_diag">Waiting for data...</div>
                             </div>
                         </div>
                     </div>

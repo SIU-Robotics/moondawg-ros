@@ -6,11 +6,7 @@ from launch.conditions import IfCondition
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    """Generate launch description for moondawg package."""
-    
-    # Launch arguments
-    enable_rosbridge = LaunchConfiguration('enable_rosbridge', default='true')
-    
+    """Generate launch description for moondawg package."""    
     # Camera enable flags - individual control for each camera
     enable_usb_camera = LaunchConfiguration('enable_usb', default='true')
     enable_depth1 = LaunchConfiguration('enable_depth1', default='true')
@@ -19,7 +15,10 @@ def generate_launch_description():
     camera_device = LaunchConfiguration('camera_device', default='/dev/video0')
     realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
     realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
-    # serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
+
+    # use i2c or serial
+    useSerial = LaunchConfiguration('useSerial', default='false')
+    serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
     
@@ -28,15 +27,10 @@ def generate_launch_description():
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
-    max_image_width = LaunchConfiguration('max_image_width', default='420')
+    max_image_width = LaunchConfiguration('max_image_width', default='530')
     
     # Declare launch arguments so they can be passed on the command line
     args = [
-        DeclareLaunchArgument(
-            'enable_rosbridge',
-            default_value='true',
-            description='Enable or disable the ROS bridge websocket server'
-        ),
         DeclareLaunchArgument(
             'enable_usb',
             default_value='true',
@@ -66,6 +60,11 @@ def generate_launch_description():
             'realsense2_serial',
             default_value='',
             description='Serial number for second RealSense camera (leave empty to use any available)'
+        ),
+        DeclareLaunchArgument(
+            'useSerial',
+            default_value='false',
+            description='Use serial communication instead of I2C'
         ),
         DeclareLaunchArgument(
             'serial_port',
@@ -104,28 +103,24 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'max_image_width',
-            default_value='420',
+            default_value='530',
             description='Maximum width for images (aspect ratio maintained)'
         ),
     ]
     
     # Define nodes
     nodes = [
-        # ROSBridge for WebSocket connection - conditionally launched
         Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
             name='websocket',
             output='screen',
-            condition=IfCondition(enable_rosbridge),
             parameters=[
                 {'port': 9090},
                 {'address': '0.0.0.0'},
                 {'retry_startup_delay': 5.0}
             ]
         ),
-        
-        # Web camera node - conditionally launched with USB camera flag
         Node(
             package='image_tools',
             executable='cam2image',
@@ -134,12 +129,9 @@ def generate_launch_description():
             condition=IfCondition(enable_usb_camera),
             parameters=[
                 {'device': camera_device},
-                # Using native resolution
                 {'fps': 15.0}
             ]
         ),
-        
-        # RealSense camera 1 - conditionally launched with depth1 flag
         Node(
             package='realsense2_camera',
             executable='realsense2_camera_node',
@@ -151,7 +143,6 @@ def generate_launch_description():
                 {'device_type': 'd435'},
                 {'enable_color': True},
                 {'enable_depth': True},
-                # Using native resolution - removing fixed size
                 {'depth_fps': 15.0},
                 {'color_fps': 15.0},
                 {'filters': 'pointcloud'},
@@ -160,8 +151,6 @@ def generate_launch_description():
                 {'camera_name': 'camera1'}
             ]
         ),
-        
-        # RealSense camera 2 - conditionally launched with depth2 flag
         Node(
             package='realsense2_camera',
             executable='realsense2_camera_node',
@@ -170,10 +159,9 @@ def generate_launch_description():
             condition=IfCondition(enable_depth2),
             parameters=[
                 {'serial_no': realsense2_serial},
-                {'device_type': 'd435'},
+                {'device_type': 'd456'},
                 {'enable_color': True},
                 {'enable_depth': True},
-                # Using native resolution - removing fixed size
                 {'depth_fps': 15.0},
                 {'color_fps': 15.0},
                 {'filters': 'pointcloud'},
@@ -182,8 +170,6 @@ def generate_launch_description():
                 {'camera_name': 'camera2'}
             ]
         ),
-        
-        # Controller parser node
         Node(
             package='moondawg',
             executable='controller_parser',
@@ -198,12 +184,11 @@ def generate_launch_description():
                 {'debug': debug_mode}
             ]
         ),
-        
-        # I2C communication node
         Node(
             package='moondawg',
             executable='i2c_node',
             name='i2c_node',
+            condition=IfCondition(IfCondition(useSerial).negate()),
             output='screen',
             parameters=[
                 {'bus_id': i2c_bus},
@@ -212,20 +197,33 @@ def generate_launch_description():
                 {'debug': debug_mode}
             ]
         ),
-        # Node(
-        #     package='moondawg',
-        #     executable='serial_node',
-        #     name='serial_node',
-        #     output='screen',
-        #     parameters=[
-        #         {'port': serial_port},
-        #         {'baudrate': 9600},
-        #         {'timeout': 1.0},
-        #         {'write_timeout': 1.0},
-        #         {'retry_interval': 5.0},
-        #         {'debug': debug_mode}
-        #     ]
-        # ),
+        Node(
+            package='moondawg',
+            executable='serial_node',
+            name='serial_node',
+            condition=IfCondition(useSerial),
+            output='screen',
+            parameters=[
+                {'port': serial_port},
+                {'baudrate': 9600},
+                {'timeout': 1.0},
+                {'write_timeout': 1.0},
+                {'retry_interval': 5.0},
+                {'debug': debug_mode}
+            ]
+        ),
+        Node(
+            package='moondawg',
+            executable='camera_node',
+            name='camera_node',
+            output='screen',
+            parameters=[
+                {'image_compression_quality': image_compression_quality},
+                {'image_frame_rate': image_frame_rate},
+                {'max_image_width': max_image_width},
+                {'debug': debug_mode}
+            ]
+        )
     ]
     
     # Create and return launch description

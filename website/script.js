@@ -72,30 +72,30 @@ var buttonTopic = new ROSLIB.Topic({
   messageType: "std_msgs/Int8MultiArray",
 });
 
-// Camera image topics
-var imageTopic = new ROSLIB.Topic({
+// Camera node topics
+var cameraNodeImageTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/controller_parser/compressed_image",
+  name: "/camera_node/compressed_image",
   messageType: "std_msgs/String",
 });
-var rs1ColorTopic = new ROSLIB.Topic({
+var cameraNodeRS1ColorTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/controller_parser/rs1_color_image",
+  name: "/camera_node/rs1_color_image",
   messageType: "std_msgs/String",
 });
-var rs1DepthTopic = new ROSLIB.Topic({
+var cameraNodeRS1DepthTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/controller_parser/rs1_depth_image",
+  name: "/camera_node/rs1_depth_image",
   messageType: "std_msgs/String",
 });
-var rs2ColorTopic = new ROSLIB.Topic({
+var cameraNodeRS2ColorTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/controller_parser/rs2_color_image",
+  name: "/camera_node/rs2_color_image",
   messageType: "std_msgs/String",
 });
-var rs2DepthTopic = new ROSLIB.Topic({
+var cameraNodeRS2DepthTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/controller_parser/rs2_depth_image",
+  name: "/camera_node/rs2_depth_image",
   messageType: "std_msgs/String",
 });
 
@@ -108,6 +108,11 @@ var controllerDiagTopic = new ROSLIB.Topic({
 var i2cDiagTopic = new ROSLIB.Topic({
   ros: ros,
   name: "/i2c_node/diag",
+  messageType: "diagnostic_msgs/DiagnosticStatus",
+});
+var cameraNodeDiagTopic = new ROSLIB.Topic({
+  ros: ros,
+  name: "/camera_node/diag",
   messageType: "diagnostic_msgs/DiagnosticStatus",
 });
 
@@ -160,26 +165,40 @@ function fetchParameters() {
   );
 }
 
-// Subscribe to topics
-imageTopic.subscribe(function (message) {
-  updateImageWithMimeType(document.getElementById("video_out"), message.data);
+// Subscribe to camera node topics
+cameraNodeImageTopic.subscribe(function (message) {
+  updateImageWithMimeType(
+    document.getElementById("camera_node_video"),
+    message.data
+  );
 });
 
-// Subscribe to RealSense camera topics
-rs1ColorTopic.subscribe(function (message) {
-  updateImageWithMimeType(document.getElementById("rs1_color"), message.data);
+cameraNodeRS1ColorTopic.subscribe(function (message) {
+  updateImageWithMimeType(
+    document.getElementById("camera_node_rs1_color"),
+    message.data
+  );
 });
 
-rs1DepthTopic.subscribe(function (message) {
-  updateImageWithMimeType(document.getElementById("rs1_depth"), message.data);
+cameraNodeRS1DepthTopic.subscribe(function (message) {
+  updateImageWithMimeType(
+    document.getElementById("camera_node_rs1_depth"),
+    message.data
+  );
 });
 
-rs2ColorTopic.subscribe(function (message) {
-  updateImageWithMimeType(document.getElementById("rs2_color"), message.data);
+cameraNodeRS2ColorTopic.subscribe(function (message) {
+  updateImageWithMimeType(
+    document.getElementById("camera_node_rs2_color"),
+    message.data
+  );
 });
 
-rs2DepthTopic.subscribe(function (message) {
-  updateImageWithMimeType(document.getElementById("rs2_depth"), message.data);
+cameraNodeRS2DepthTopic.subscribe(function (message) {
+  updateImageWithMimeType(
+    document.getElementById("camera_node_rs2_depth"),
+    message.data
+  );
 });
 
 axisTopic.subscribe(function (message) {
@@ -244,6 +263,10 @@ controllerDiagTopic.subscribe(function (message) {
 
 i2cDiagTopic.subscribe(function (message) {
   document.getElementById("i2c_diag").innerHTML = message.message;
+});
+
+cameraNodeDiagTopic.subscribe(function (message) {
+  document.getElementById("camera_node_diag").innerHTML = message.message;
 });
 
 // Subscribe to I2C command history topic from controller_parser only
