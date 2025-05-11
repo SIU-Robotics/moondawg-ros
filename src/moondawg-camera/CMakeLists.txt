@@ -23,7 +23,6 @@ find_package(OpenCV REQUIRED)
 
 include_directories(
   include
-  /opt/ros/jazzy/include/cv_bridge/cv_bridge/
 )
 
 add_library(
