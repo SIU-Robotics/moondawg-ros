@@ -163,8 +163,8 @@ def generate_launch_description():
     realsense_node_1 = Node(
         package='realsense2_camera',
         executable='realsense2_camera_node',
-        namespace='camera1',
-        name='realsense_camera1',
+        namespace='realsense',
+        name='camera1',
         parameters=[{
             'serial_no': realsense1_serial,
             'enable_color': True,
@@ -184,8 +184,8 @@ def generate_launch_description():
     realsense_node_2 = Node(
         package='realsense2_camera',
         executable='realsense2_camera_node',
-        namespace='camera2',
-        name='realsense_camera2',
+        namespace='realsense',
+        name='camera2',
         parameters=[{
             'serial_no': realsense2_serial,
             'enable_color': True,
@@ -221,7 +221,7 @@ def generate_launch_description():
                 }],
                 remappings=[
                     ('image_raw', '/usb_camera/image_raw'), # Subscription
-                    ('image_compressed', '/camera_node/compressed_image') # Publication for web UI
+                    ('image_compressed', '/camera_node/usb_camera_image') # Publication for web UI with unique topic name
                 ],
                 condition=IfCondition(enable_usb_camera)
             ),
@@ -237,7 +237,7 @@ def generate_launch_description():
                     'camera_key': 'rs1_color',
                 }],
                 remappings=[
-                    ('image_raw', '/camera1/color/image_raw'),
+                    ('image_raw', '/realsense/camera1/color/image_raw'),
                     ('image_compressed', '/camera_node/rs1_color_image')
                 ],
                 condition=IfCondition(enable_depth1)
@@ -255,7 +255,7 @@ def generate_launch_description():
                 }],
                 remappings=[
                     # Realsense depth is often 16UC1, ensure ImageCompressionNode handles it (e.g. normalize and colormap)
-                    ('image_raw', '/camera1/depth/image_rect_raw'), 
+                    ('image_raw', '/realsense/camera1/depth/image_rect_raw'), 
                     ('image_compressed', '/camera_node/rs1_depth_image')
                 ],
                 condition=IfCondition(enable_depth1)
@@ -272,7 +272,7 @@ def generate_launch_description():
                     'camera_key': 'rs2_color',
                 }],
                 remappings=[
-                    ('image_raw', '/camera2/color/image_raw'),
+                    ('image_raw', '/realsense/camera2/color/image_raw'),
                     ('image_compressed', '/camera_node/rs2_color_image')
                 ],
                 condition=IfCondition(enable_depth2)
@@ -289,7 +289,7 @@ def generate_launch_description():
                     'camera_key': 'rs2_depth',
                 }],
                 remappings=[
-                    ('image_raw', '/camera2/depth/image_rect_raw'),
+                    ('image_raw', '/realsense/camera2/depth/image_rect_raw'),
                     ('image_compressed', '/camera_node/rs2_depth_image')
                 ],
                 condition=IfCondition(enable_depth2)

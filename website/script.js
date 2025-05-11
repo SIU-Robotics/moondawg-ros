@@ -75,7 +75,7 @@ var buttonTopic = new ROSLIB.Topic({
 // Camera node topics
 var cameraNodeImageTopic = new ROSLIB.Topic({
   ros: ros,
-  name: "/camera_node/compressed_image",
+  name: "/camera_node/usb_camera_image", // Changed to match the new topic name in launch file
   messageType: "std_msgs/String",
 });
 var cameraNodeRS1ColorTopic = new ROSLIB.Topic({
@@ -121,48 +121,6 @@ var controllerI2CHistoryTopic = new ROSLIB.Topic({
   ros: ros,
   name: "/controller_parser/i2c_history",
   messageType: "std_msgs/String",
-});
-
-// Parameters
-// Replace the incorrect ros.getParams function with proper ROSLIB parameter fetching
-function fetchParameters() {
-  // Get a list of all parameters
-  var getParamNamesClient = new ROSLIB.Service({
-    ros: ros,
-    name: "/controller_parser/get_parameters/belt_speed_index",
-    serviceType: "rosapi/GetParamNames",
-  });
-
-  getParamNamesClient.callService(
-    new ROSLIB.ServiceRequest({}),
-    function (result) {
-      console.log(result);
-      const paramNames = result;
-      let params = {};
-      let fetchedCount = 0;
-
-      // For each parameter name, get its value
-      paramNames.forEach(function (paramName) {
-        var param = new ROSLIB.Param({
-          ros: ros,
-          name: paramName,
-        });
-
-        param.get(function (value) {
-          params[paramName] = value;
-          fetchedCount++;
-
-          // When all parameters are fetched, display them
-          if (fetchedCount === paramNames.length) {
-            const formattedParams = JSON.stringify(params, null, 2);
-            document.getElementById(
-              "params-display"
-            ).innerHTML = `<pre>${formattedParams}</pre>`;
-          }
-        });
-      });
-    }
-  );
 }
 
 // Subscribe to camera node topics
