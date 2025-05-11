@@ -156,62 +156,6 @@ cameraNodeRS2DepthTopic.subscribe(function (message) {
   );
 });
 
-axisTopic.subscribe(function (message) {
-  // Format axis data in a more readable way
-  if (Array.isArray(message.data)) {
-    const axisNames = [
-      "Left X",
-      "Left Y",
-      "Right X",
-      "Right Y",
-      "LT",
-      "RT",
-      "DPad X",
-      "DPad Y",
-    ];
-    let formattedData = "";
-
-    for (let i = 0; i < message.data.length; i++) {
-      const axisName = i < axisNames.length ? axisNames[i] : `Axis ${i}`;
-      formattedData += `${axisName}: ${message.data[i]}\n`;
-    }
-
-    document.getElementById("axis-display").innerHTML = formattedData;
-  } else {
-    document.getElementById("axis-display").innerHTML = message.data;
-  }
-});
-
-buttonTopic.subscribe(function (message) {
-  // Format button data in a more readable way
-  if (Array.isArray(message.data)) {
-    const buttonNames = [
-      "A",
-      "B",
-      "X",
-      "Y",
-      "LB",
-      "RB",
-      "Back",
-      "Start",
-      "LS",
-      "RS",
-    ];
-    let formattedData = "";
-
-    for (let i = 0; i < message.data.length; i++) {
-      const buttonName =
-        i < buttonNames.length ? buttonNames[i] : `Button ${i}`;
-      const value = message.data[i];
-      formattedData += `${buttonName}: ${value}\n`;
-    }
-
-    document.getElementById("button-display").innerHTML = formattedData;
-  } else {
-    document.getElementById("button-display").innerHTML = message.data;
-  }
-});
-
 controllerDiagTopic.subscribe(function (message) {
   document.getElementById("controller_diag").innerHTML = message.message;
 });
