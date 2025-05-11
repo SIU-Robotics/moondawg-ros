@@ -12,8 +12,6 @@
 #include "sensor_msgs/msg/image.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/opencv.hpp>
 
 namespace moondawg
 {

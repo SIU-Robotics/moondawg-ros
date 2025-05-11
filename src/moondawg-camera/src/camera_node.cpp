@@ -7,9 +7,6 @@
 #include <string>
 #include <sstream>
 
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-
 namespace moondawg
 {
 

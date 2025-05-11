@@ -21,6 +21,9 @@ find_package(OpenCV REQUIRED)
 include_directories(
   include
   ${OpenCV_INCLUDE_DIRS}
+  # cv_bridge include directories are typically handled by ament_target_dependencies
+  # but can be added explicitly if needed, e.g.:
+  # ${cv_bridge_INCLUDE_DIRS}
 )
 
 # Camera Node Component
@@ -56,6 +59,14 @@ ament_target_dependencies(image_compression_node_component
   cv_bridge
   image_transport # Though not explicitly image_transport::Publisher, cv_bridge needs it.
   OpenCV
+)
+# Add include directories for dependencies like cv_bridge and OpenCV
+# It's generally better to use target_include_directories for modern CMake
+target_include_directories(image_compression_node_component PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${cv_bridge_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 rclcpp_components_register_nodes(image_compression_node_component "moondawg::ImageCompressionNode")
 
