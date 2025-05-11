@@ -135,10 +135,7 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
         
         // Update the image, no need to convert back and forth
         cv_image_ptr->image = resized;
-        
-        // Process the downsampled image directly
-        cv::Mat processed_cv_image;
-        
+                
         cv::Mat processed_cv_image;
         if (is_depth_image) {
             // Optimize depth visualization by using a faster colormap
@@ -158,7 +155,6 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
             }
             
             // Use faster normalize with fixed range for depth images
-            double min_val = 0;
             double max_val = 10000; // Use a fixed range that works for your sensor
             
             // Convert to 8-bit for colormap with a fixed range (faster than NORM_MINMAX which has to scan the image)
