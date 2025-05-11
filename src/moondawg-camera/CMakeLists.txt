@@ -21,7 +21,10 @@ find_package(diagnostic_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 
-include_directories(include)
+include_directories(
+  include
+  /opt/ros/jazzy/include/cv_bridge/cv_bridge/
+)
 
 add_library(
   moondawg_camera_component
