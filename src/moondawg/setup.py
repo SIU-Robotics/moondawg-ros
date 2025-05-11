@@ -35,7 +35,7 @@ setup(
 
         ],
         'rclpy_components': [
-            'moondawg_camera_node = moondawg.camera_node:CameraNode',
+            'moondawg_camera_node::CameraNode = moondawg.camera_node:CameraNode',
         ],
     },
     classifiers=[

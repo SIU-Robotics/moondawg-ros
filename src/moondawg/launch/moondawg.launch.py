@@ -208,7 +208,7 @@ def generate_launch_description():
             # Camera node for processing the RealSense data
             ComposableNode(
                 package='moondawg',
-                plugin='moondawg_camera_node',
+                plugin='moondawg_camera_node::CameraNode',
                 name='camera_node',
                 parameters=[
                     {'image_compression_quality': image_compression_quality},
