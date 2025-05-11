@@ -23,9 +23,9 @@ def generate_launch_description():
     # Controller parser parameters
     joystick_deadzone = LaunchConfiguration('joystick_deadzone', default='0.1')
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
-    # Image processing parameters are now mostly per-compression-node
-    # General quality/framerate can still be launch args if desired for all compression nodes
+    # General quality can still be launch args
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
+    # Note: image_frame_rate is kept for backward compatibility but no longer used for limiting
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
     max_image_width = LaunchConfiguration('max_image_width', default='640') # Corrected default from 530
     
@@ -99,7 +99,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'image_frame_rate',
             default_value='15',
-            description='Frame rate for image processing'
+            description='Frame rate for camera settings (no longer used for limiting)'
         ),
         DeclareLaunchArgument(
             'max_image_width',
@@ -218,7 +218,6 @@ def generate_launch_description():
                 name='usb_camera_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'image_frame_rate': image_frame_rate,
                     'max_image_width': max_image_width,
                     'camera_key': 'usb_main_camera',
                 }],
@@ -235,7 +234,6 @@ def generate_launch_description():
                 name='rs1_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'image_frame_rate': image_frame_rate,
                     'max_image_width': max_image_width,
                     'camera_key': 'rs1_color',
                 }],
@@ -252,7 +250,6 @@ def generate_launch_description():
                 name='rs1_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality, # Depth might need different quality
-                    'image_frame_rate': image_frame_rate,
                     'max_image_width': max_image_width,
                     'camera_key': 'rs1_depth',
                 }],
@@ -270,7 +267,6 @@ def generate_launch_description():
                 name='rs2_color_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'image_frame_rate': image_frame_rate,
                     'max_image_width': max_image_width,
                     'camera_key': 'rs2_color',
                 }],
@@ -287,7 +283,6 @@ def generate_launch_description():
                 name='rs2_depth_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
-                    'image_frame_rate': image_frame_rate,
                     'max_image_width': max_image_width,
                     'camera_key': 'rs2_depth',
                 }],

@@ -38,7 +38,6 @@ void CameraComponent::declareParameters()
   this->declare_parameter("use_intra_process_comms", true);
   // Parameters moved from ImageCompressionNode
   this->declare_parameter("image_compression_quality", 20);
-  this->declare_parameter("image_frame_rate", 15);
   this->declare_parameter("max_image_width", 640);
   this->declare_parameter("camera_key", "camera"); // Default key
 }
@@ -47,7 +46,6 @@ void CameraComponent::setupCommunications()
 {
   use_intra_process_comms_ = this->get_parameter("use_intra_process_comms").as_bool();
   image_compression_quality_ = this->get_parameter("image_compression_quality").as_int();
-  image_frame_rate_ = this->get_parameter("image_frame_rate").as_int();
   max_image_width_ = this->get_parameter("max_image_width").as_int();
   camera_key_ = this->get_parameter("camera_key").as_string();
   
@@ -141,10 +139,6 @@ bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std
   try
   {
     double current_time = this->now().seconds();
-    if (image_frame_rate_ > 0 && (current_time - last_processed_time_) < (1.0 / image_frame_rate_))
-    {
-      return false; // Skip frame
-    }
     last_processed_time_ = current_time;
     double processing_start_time = current_time;
 

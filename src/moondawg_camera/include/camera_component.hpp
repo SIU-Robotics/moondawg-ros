@@ -94,11 +94,11 @@ private:
   // Parameters
   bool use_intra_process_comms_;
   int image_compression_quality_;
-  int image_frame_rate_;
+  int image_frame_rate_;  // Kept for backward compatibility but no longer used for limiting
   int max_image_width_;
   std::string camera_key_; 
 
-  // Frame rate control
+  // Variables for latency tracking
   double last_processed_time_;
   
   // Diagnostics
