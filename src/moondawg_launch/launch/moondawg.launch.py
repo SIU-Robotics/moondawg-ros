@@ -199,23 +199,6 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(enable_depth2) # Or a more specific enable flag
     )
-    
-    # --- USB CAMERA NODE ---
-    # Standard USB camera node
-    usb_camera_node = Node(
-        package='usb_cam', # Assuming usb_cam package
-        executable='usb_cam_node_exe', # often usb_cam_node or usb_cam_node_exe
-        name='usb_camera',
-        parameters=[{
-            'video_device': camera_device,
-            'image_width': 640, # Configure USB cam params
-            'image_height': 480,
-            'framerate': 30,
-            'pixel_format': 'yuyv2rgb', # or mjpeg
-        }],
-        output='screen',
-        condition=IfCondition(enable_usb_camera)
-    )
 
     # --- COMPOSABLE NODE CONTAINER FOR IMAGE COMPRESSION ---
     # All compression nodes will run in this container for efficiency
