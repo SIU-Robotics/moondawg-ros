@@ -1,9 +1,11 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
-from launch.substitutions import LaunchConfiguration, EnvironmentVariable
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration, EnvironmentVariable, PathJoinSubstitution
 from launch.conditions import IfCondition
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     """Generate launch description for moondawg package."""
@@ -15,6 +17,11 @@ def generate_launch_description():
     # serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
+    
+    # Additional launch arguments for navigation
+    map_yaml_file = LaunchConfiguration('map')
+    nav2_config = LaunchConfiguration('nav2_config')
+    use_sim_time = LaunchConfiguration('use_sim_time')
     
     # Declare launch arguments so they can be passed on the command line
     args = [
@@ -47,6 +54,29 @@ def generate_launch_description():
             'debug',
             default_value='false',
             description='Enable debug mode with additional logging'
+        ),
+        DeclareLaunchArgument(
+            'map',
+            default_value=os.path.join(
+                get_package_share_directory('moondawg'),
+                'maps',
+                'map.yaml'
+            ),
+            description='Full path to map yaml file to load'
+        ),
+        DeclareLaunchArgument(
+            'nav2_config',
+            default_value=os.path.join(
+                get_package_share_directory('moondawg'),
+                'config',
+                'nav2_params.yaml'
+            ),
+            description='Full path to nav2 params file'
+        ),
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation clock if true'
         ),
     ]
     
@@ -123,6 +153,103 @@ def generate_launch_description():
         #     ]
         # ),
     ]
+    
+    # Nav2 stack nodes
+    nav_nodes = [
+        # SLAM Toolbox
+        Node(
+            package='slam_toolbox',
+            executable='async_slam_toolbox_node',
+            name='slam_toolbox',
+            output='screen',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'map_file_name': map_yaml_file,
+                'map_update_rate': 5.0,
+                'resolution': 0.05,
+            }]
+        ),
+
+        # Map Server
+        Node(
+            package='nav2_map_server',
+            executable='map_server',
+            name='map_server',
+            output='screen',
+            parameters=[{'yaml_filename': map_yaml_file}]
+        ),
+
+        # AMCL
+        Node(
+            package='nav2_amcl',
+            executable='amcl',
+            name='amcl',
+            output='screen',
+            parameters=[nav2_config]
+        ),
+
+        # Controller Server
+        Node(
+            package='nav2_controller',
+            executable='controller_server',
+            output='screen',
+            parameters=[nav2_config],
+            remappings=[
+                ('/cmd_vel', '/moondawg/cmd_vel'),
+                ('/odom', '/moondawg/odom')
+            ]
+        ),
+
+        # Planner Server
+        Node(
+            package='nav2_planner',
+            executable='planner_server',
+            name='planner_server',
+            output='screen',
+            parameters=[nav2_config]
+        ),
+
+        # Behavior Server
+        Node(
+            package='nav2_behaviors',
+            executable='behavior_server',
+            name='behavior_server',
+            parameters=[nav2_config],
+            output='screen'
+        ),
+
+        # BT Navigator
+        Node(
+            package='nav2_bt_navigator',
+            executable='bt_navigator',
+            name='bt_navigator',
+            output='screen',
+            parameters=[nav2_config]
+        ),
+
+        # Lifecycle Manager for Navigation
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_navigation',
+            output='screen',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+                {'autostart': True},
+                {'node_names': [
+                    'map_server',
+                    'amcl',
+                    'controller_server',
+                    'planner_server',
+                    'behavior_server',
+                    'bt_navigator'
+                ]}
+            ]
+        )
+    ]
+
+    # Add navigation nodes to existing nodes list
+    nodes.extend(nav_nodes)
     
     # Create and return launch description
     return LaunchDescription(args + nodes)

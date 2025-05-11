@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<root main_tree_to_execute="excavate_mission">
+  <BehaviorTree ID="excavate_mission">
+    <Sequence name="root_sequence">
+      <NavigateToPose goal="{dig_site_pose}"/>
+      <Sequence name="excavation_sequence">
+        <LowerBelt/>
+        <StartBelt/>
+        <WaitForDuration seconds="15"/>
+        <StopBelt/>
+        <RaiseBelt/>
+      </Sequence>
+      <NavigateToPose goal="{deposition_site_pose}"/>
+      <Sequence name="deposit_sequence">
+        <StartAuger/>
+        <WaitForDuration seconds="10"/>
+        <StopAuger/>
+      </Sequence>
+    </Sequence>
+  </BehaviorTree>
+</root>
