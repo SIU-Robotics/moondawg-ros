@@ -26,8 +26,6 @@ mount --bind "$WEBSITE_DIR" /var/www/html
 
 echo "$WEBSITE_DIR /var/www/html none bind 0 0" >> /etc/fstab
 
-chown -R www-data:www-data "$WEBSITE_DIR"
-
 systemctl enable nginx
 
 LOCAL_IP=$(hostname -I | awk '{print $1}')
