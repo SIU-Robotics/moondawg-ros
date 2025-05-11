@@ -10,11 +10,11 @@ controller_parser:
   belt_speeds: [180, 125, 120]
 
   # Camera settings
-  image_compression_quality: 20
-  # Removed image_resize_width and image_resize_height to use native camera resolution
+  image_compression_quality: 15
+  image_resize_factor: 0.5 # Scale images to 50% of original size
   image_frame_rate: 15
   adaptive_quality: true
-  use_webp: true # Using WebP format for better compression and lower bandwidth usage
+  use_webp: false # Set to false for lower CPU usage (JPEG is faster than WebP)
 
   # Autonomous operation
   auto_dig_duration_seconds: 30

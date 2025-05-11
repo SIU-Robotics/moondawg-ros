@@ -151,10 +151,10 @@ class ControllerParser(Node):
         self.declare_parameter('joystick_deadzone', 0.07)
         # Image processing parameters
         self.declare_parameter('image_compression_quality', 20)
-        # Removed resize parameters to use native resolution
         self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
         self.declare_parameter('adaptive_quality', True)  # Enable/disable adaptive quality
         self.declare_parameter('use_webp', True)  # Use WebP instead of JPEG when True
+        self.declare_parameter('image_resize_factor', 0.5)  # Resize factor for images (0.5 = half size)
         self.declare_parameter('auto_dig_duration_seconds', 30)
         self.declare_parameter('belt_speeds', [180, 125, 120])
 
@@ -400,6 +400,92 @@ class ControllerParser(Node):
             # Phase 4: Complete sequence
             self.digging = False
 
+    def _process_image(self, cv_image, last_time_attr, publisher, is_depth=False):
+        """
+        Common image processing function to optimize camera feed handling.
+        
+        Args:
+            cv_image: OpenCV image to process
+            last_time_attr: Attribute name for tracking last frame time
+            publisher: ROS publisher to send the processed image to
+            is_depth: True if this is a depth image (for specialized processing)
+            
+        Returns:
+            True if image was processed and published, False if skipped
+        """
+        try:
+            # Check frame rate control - only process every nth frame
+            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
+            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
+            
+            # Skip frames based on frame rate setting (basic throttling)
+            if hasattr(self, last_time_attr) and (current_time - getattr(self, last_time_attr)) < (1.0 / frame_rate):
+                return False
+            
+            setattr(self, last_time_attr, current_time)
+            
+            # Resize the image to reduce CPU usage
+            resize_factor = self.get_parameter('image_resize_factor').get_parameter_value().double_value
+            if resize_factor != 1.0:
+                new_width = int(cv_image.shape[1] * resize_factor)
+                new_height = int(cv_image.shape[0] * resize_factor)
+                # Use INTER_NEAREST for depth images or INTER_AREA for color images (best for downsampling)
+                interpolation = cv2.INTER_NEAREST if is_depth else cv2.INTER_AREA
+                cv_image = cv2.resize(cv_image, (new_width, new_height), interpolation=interpolation)
+            
+            # Use adaptive quality if enabled
+            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
+            adaptive_quality = self.get_parameter('adaptive_quality').get_parameter_value().bool_value
+            
+            # For depth images, we can typically use lower quality settings
+            if adaptive_quality:
+                if is_depth:
+                    quality = max(5, quality - 8)  # Lower quality is fine for depth images
+                else:
+                    # Calculate image complexity only if needed - this is a CPU-intensive operation
+                    # Use a small downsampled image for faster complexity calculation
+                    sample_img = cv_image
+                    if cv_image.shape[0] > 240 or cv_image.shape[1] > 320:
+                        sample_img = cv2.resize(cv_image, (320, 240), interpolation=cv2.INTER_AREA)
+                    
+                    # Convert to grayscale for Laplacian
+                    if len(sample_img.shape) == 3 and sample_img.shape[2] == 3:  # Only if color image
+                        gray = cv2.cvtColor(sample_img, cv2.COLOR_BGR2GRAY)
+                    else:
+                        gray = sample_img
+                        
+                    # Use faster variance calculation
+                    variance = cv2.Laplacian(gray, cv2.CV_8U).var()
+                    
+                    # Adjust quality based on complexity
+                    if variance < 50:  # Low complexity/detail image
+                        quality = max(5, quality - 15)
+                    elif variance > 200:  # High complexity/detail image
+                        quality = min(40, quality + 5)
+            
+            # Use WebP if enabled (better compression than JPEG)
+            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
+            if use_webp:
+                # WebP is more CPU-intensive but offers better compression
+                _, encoded_img = cv2.imencode('.webp', cv_image, 
+                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
+                mime_type = "image/webp"
+            else:
+                # Default to JPEG which is faster
+                _, encoded_img = cv2.imencode('.jpg', cv_image, 
+                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
+                mime_type = "image/jpeg"
+            
+            # Convert to base64 and publish
+            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
+            data_with_mime = f"{mime_type},{base64_data}"
+            publisher.publish(String(data=data_with_mime))
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f"Error processing image: {str(e)}")
+            return False
+    
     def image_translator(self, message: Image) -> None:
         """
         Convert ROS Image messages to compressed base64 strings for web transmission.
@@ -408,50 +494,9 @@ class ControllerParser(Node):
             message: The Image message from the camera
         """
         try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, '_last_frame_time') and (current_time - self._last_frame_time) < (1.0 / frame_rate):
-                return
-            
-            self._last_frame_time = current_time
-            
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message)
-            
-            # Use adaptive quality if enabled
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # Adaptive quality based on image complexity
-            if self.get_parameter('adaptive_quality').get_parameter_value().bool_value:
-                # Calculate image complexity (variance of Laplacian is a good measure of "detail")
-                gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-                variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-                
-                # Adjust quality based on complexity
-                if variance < 100:  # Low complexity/detail image
-                    quality = max(5, quality - 10)
-                elif variance > 500:  # High complexity/detail image
-                    quality = min(40, quality + 10)
-            
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                _, encoded_img = cv2.imencode('.webp', cv_image, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG
-                _, encoded_img = cv2.imencode('.jpg', cv_image, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish - include MIME type for easier frontend handling
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            self.image_pub.publish(String(data=data_with_mime))
+            self._process_image(cv_image, '_last_frame_time', self.image_pub)
         except Exception as e:
             self.get_logger().error(f"Error processing camera image: {str(e)}")
 
@@ -463,50 +508,9 @@ class ControllerParser(Node):
             message: The Image message from the RealSense 1 color camera
         """
         try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, '_last_rs1_color_frame_time') and (current_time - self._last_rs1_color_frame_time) < (1.0 / frame_rate):
-                return
-            
-            self._last_rs1_color_frame_time = current_time
-            
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            
-            # Use adaptive quality if enabled
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # Adaptive quality based on image complexity
-            if self.get_parameter('adaptive_quality').get_parameter_value().bool_value:
-                # Calculate image complexity (variance of Laplacian is a good measure of "detail")
-                gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-                variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-                
-                # Adjust quality based on complexity
-                if variance < 100:  # Low complexity/detail image
-                    quality = max(5, quality - 10)
-                elif variance > 500:  # High complexity/detail image
-                    quality = min(40, quality + 10)
-            
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                _, encoded_img = cv2.imencode('.webp', cv_image, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG
-                _, encoded_img = cv2.imencode('.jpg', cv_image, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish - include MIME type for easier frontend handling
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            self.rs1_color_pub.publish(String(data=data_with_mime))
+            self._process_image(cv_image, '_last_rs1_color_frame_time', self.rs1_color_pub)
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense 1 color image: {str(e)}")
     
@@ -518,16 +522,6 @@ class ControllerParser(Node):
             message: The Image message from the RealSense 1 depth camera
         """
         try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, '_last_rs1_depth_frame_time') and (current_time - self._last_rs1_depth_frame_time) < (1.0 / frame_rate):
-                return
-            
-            self._last_rs1_depth_frame_time = current_time
-            
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
             
@@ -537,29 +531,7 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Use adaptive quality if enabled (depth images can use lower quality)
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # For depth images, we can typically use lower quality settings
-            if self.get_parameter('adaptive_quality').get_parameter_value().bool_value:
-                quality = max(10, quality - 5)  # Reduce quality slightly for depth images
-            
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                _, encoded_img = cv2.imencode('.webp', cv_image_colormap, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG
-                _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish - include MIME type for easier frontend handling
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            self.rs1_depth_pub.publish(String(data=data_with_mime))
+            self._process_image(cv_image_colormap, '_last_rs1_depth_frame_time', self.rs1_depth_pub, is_depth=True)
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense 1 depth image: {str(e)}")
     
@@ -571,50 +543,9 @@ class ControllerParser(Node):
             message: The Image message from the RealSense 2 color camera
         """
         try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, '_last_rs2_color_frame_time') and (current_time - self._last_rs2_color_frame_time) < (1.0 / frame_rate):
-                return
-            
-            self._last_rs2_color_frame_time = current_time
-            
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            
-            # Use adaptive quality if enabled
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # Adaptive quality based on image complexity
-            if self.get_parameter('adaptive_quality').get_parameter_value().bool_value:
-                # Calculate image complexity (variance of Laplacian is a good measure of "detail")
-                gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-                variance = cv2.Laplacian(gray, cv2.CV_64F).var()
-                
-                # Adjust quality based on complexity
-                if variance < 100:  # Low complexity/detail image
-                    quality = max(5, quality - 10)
-                elif variance > 500:  # High complexity/detail image
-                    quality = min(40, quality + 10)
-            
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                _, encoded_img = cv2.imencode('.webp', cv_image, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG
-                _, encoded_img = cv2.imencode('.jpg', cv_image, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish - include MIME type for easier frontend handling
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            self.rs2_color_pub.publish(String(data=data_with_mime))
+            self._process_image(cv_image, '_last_rs2_color_frame_time', self.rs2_color_pub)
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense 2 color image: {str(e)}")
     
@@ -626,16 +557,6 @@ class ControllerParser(Node):
             message: The Image message from the RealSense 2 depth camera
         """
         try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, '_last_rs2_depth_frame_time') and (current_time - self._last_rs2_depth_frame_time) < (1.0 / frame_rate):
-                return
-            
-            self._last_rs2_depth_frame_time = current_time
-            
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
             
@@ -645,29 +566,7 @@ class ControllerParser(Node):
             # Apply colormap for better visualization
             cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
             
-            # Use adaptive quality if enabled (depth images can use lower quality)
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # For depth images, we can typically use lower quality settings
-            if self.get_parameter('adaptive_quality').get_parameter_value().bool_value:
-                quality = max(10, quality - 5)  # Reduce quality slightly for depth images
-            
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                _, encoded_img = cv2.imencode('.webp', cv_image_colormap, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG
-                _, encoded_img = cv2.imencode('.jpg', cv_image_colormap, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish - include MIME type for easier frontend handling
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            self.rs2_depth_pub.publish(String(data=data_with_mime))
+            self._process_image(cv_image_colormap, '_last_rs2_depth_frame_time', self.rs2_depth_pub, is_depth=True)
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense 2 depth image: {str(e)}")
 
