@@ -14,6 +14,8 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        ('share/ament_index/resource_index/packages', 
+            ['resource/moondawg_camera_node']),
     ],
     install_requires=[
         'setuptools',
