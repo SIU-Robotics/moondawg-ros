@@ -45,4 +45,12 @@ rclcpp_components_register_nodes(
   "moondawg::CameraComponent"
 )
 
+# Install targets
+install(TARGETS
+  moondawg_camera_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
 ament_package()

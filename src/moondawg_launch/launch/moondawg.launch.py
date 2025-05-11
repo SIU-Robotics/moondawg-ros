@@ -211,7 +211,7 @@ def generate_launch_description():
             # Compression for USB Camera
             ComposableNode(
                 package='moondawg_camera',
-                plugin='moondawg::ImageCompressionNode',
+                plugin='moondawg::CameraComponent',
                 name='usb_camera_compression',
                 parameters=[{
                     'image_compression_quality': image_compression_quality,
