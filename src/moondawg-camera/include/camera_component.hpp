@@ -1,5 +1,4 @@
-#ifndef MOONDAWG_CAMERA_NODE_HPP
-#define MOONDAWG_CAMERA_NODE_HPP
+#pragma once
 
 #include <chrono>
 #include <memory>

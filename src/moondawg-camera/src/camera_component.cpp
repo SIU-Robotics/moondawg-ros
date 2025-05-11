@@ -1,4 +1,4 @@
-#include "camera_node.hpp"
+#include "camera_component.hpp"
 
 #include <vector>
 #include <chrono>
