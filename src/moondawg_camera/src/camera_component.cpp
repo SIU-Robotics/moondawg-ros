@@ -46,6 +46,7 @@ void CameraComponent::declareParameters()
   this->declare_parameter("is_depth_camera", false);
   this->declare_parameter("skip_frames", 0);  // Skip frames for depth cameras to reduce processing load
   this->declare_parameter("use_optimized_encoding", true);
+  this->declare_parameter("depth_max_value_mm", 3000);  // Default max depth value for normalization (3 meters)
 }
 
 void CameraComponent::setupCommunications()
@@ -58,6 +59,7 @@ void CameraComponent::setupCommunications()
   is_depth_camera_ = this->get_parameter("is_depth_camera").as_bool();
   skip_frames_ = this->get_parameter("skip_frames").as_int();
   use_optimized_encoding_ = this->get_parameter("use_optimized_encoding").as_bool();
+  depth_max_value_mm_ = this->get_parameter("depth_max_value_mm").as_int();
   frame_count_ = 0;
   
   auto camera_qos = rclcpp::QoS(rclcpp::KeepLast(1))
@@ -138,12 +140,29 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
                 setDiagnosticStatus(diagnostic_msgs::msg::DiagnosticStatus::ERROR, "Depth image channel error");
                 return;
              }
-        }            // Convert directly to 8-bit using a fixed range
-        double max_val = 10000; // Adjust this based on your depth camera range
+        }
+        // Use the configured max depth value from parameters
+        double max_val = static_cast<double>(depth_max_value_mm_);
+        
+        // Optionally use dynamic normalization if enabled
+        double min_depth, max_depth;
+        cv::minMaxLoc(single_channel_image, &min_depth, &max_depth);
+        
+        // Use dynamic range if max depth is reasonable and less than our parameter
+        if (max_depth > 0 && max_depth < max_val * 0.9) {
+            // Add a small buffer to avoid division by zero and ensure good color range
+            max_val = max_depth * 1.1;
+        }
+        
+        // Log the actual max depth value being used
+        RCLCPP_DEBUG(this->get_logger(), 
+            "Depth image processing: Using max_val=%f mm (configured=%d mm, detected max=%f mm)",
+            max_val, depth_max_value_mm_, max_depth);
+        
         single_channel_image.convertTo(normalized_image, CV_8U, 255.0 / max_val);
         
-        // Use a faster colormap for depth visualization
-        cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_HOT);
+        // Use RAINBOW colormap for better depth visualization with more color variation
+        cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_RAINBOW);
     } else {
         processed_cv_image = cv_image_ptr->image;
     }

@@ -102,6 +102,7 @@ private:
   int skip_frames_;
   bool use_optimized_encoding_;
   int frame_count_;
+  int depth_max_value_mm_; // Maximum depth value in mm for normalization
 
   // Variables for latency tracking
   double last_processed_time_;
