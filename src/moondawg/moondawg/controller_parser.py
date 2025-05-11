@@ -84,18 +84,9 @@ class ControllerParser(Node):
 
     def _init_state_variables(self) -> None:
         """Initialize all state variables for the node."""
-        # Component state
-        self.belt_speeds = [180, 150, 120]  # Default values that will be overwritten by parameter
-        self.belt_speed_index = 0
-        
         # Connection state
         self.connection_time = 0
         self.connected = False
-        
-        # Autonomy state
-        self.time_start = 0
-        self.depositing = False
-        self.digging = False
         
         # Controller button states - initialized to prevent None comparisons
         self.dpad_up = 0
@@ -147,14 +138,11 @@ class ControllerParser(Node):
 
     def _declare_parameters(self) -> None:
         """Declare all ROS parameters for this node."""
-        self.declare_parameter('belt_speed_index', 0)
         self.declare_parameter('joystick_deadzone', 0.07)
         # Image processing parameters
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
         self.declare_parameter('max_image_width', 640)  # Maximum width for images, aspect ratio maintained
-        self.declare_parameter('auto_dig_duration_seconds', 30)
-        self.declare_parameter('belt_speeds', [180, 125, 120])
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
@@ -260,7 +248,6 @@ class ControllerParser(Node):
         
         # Timers
         self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
-        self.auto_timer = self.create_timer(0.5, self.auto_callback)
         
         # Add a timer to publish I2C command history periodically
         self.i2c_history_timer = self.create_timer(0.5, self.publish_i2c_history)
@@ -336,13 +323,6 @@ class ControllerParser(Node):
             self.current_ltrigger = buttons.get('ltrigger', 0)
             self.current_rtrigger = buttons.get('rtrigger', 0)
             
-            # Check if we should toggle autonomous mode
-            self._check_auto_toggle(buttons)
-            
-            # If in autonomous mode, don't process manual controls
-            if self.digging:
-                return
-            
             # Process manual control inputs
             self._process_belt_controls(buttons)
             self._process_misc_controls(buttons)
@@ -352,51 +332,6 @@ class ControllerParser(Node):
                 DiagnosticStatus.ERROR, 
                 f"Exception in gamepad button callback: {str(e)}"
             )
-
-    def auto_callback(self) -> None:
-        """
-        Manage the autonomous digging sequence.
-        
-        This function is called on a timer and manages the state machine
-        for the autonomous digging sequence.
-        """
-        if not self.digging:
-            if self.time_start != 0:
-                # Cleanup when ending autonomous mode
-                self.set_diagnostic_status(
-                    DiagnosticStatus.OK, 
-                    "Dig autonomy subroutine finished"
-                )
-                self.time_start = 0
-                # Stop belt
-                self._stop_belt()
-                # Reset belt position
-                self._set_belt_position(UP)
-            return
-            
-        # Initialize the timer if this is the start of the sequence
-        if self.time_start == 0:
-            self.time_start = datetime.datetime.now()
-            self.set_diagnostic_status(
-                DiagnosticStatus.OK, 
-                "Running dig autonomy subroutine"
-            )
-            
-        # Calculate elapsed time and run the appropriate sequence step
-        elapsed_seconds = ceil((datetime.datetime.now() - self.time_start).total_seconds())
-        
-        if elapsed_seconds < 3:
-            # Phase 1: Lower belt
-            self._set_belt_position(DOWN)
-        elif 3 <= elapsed_seconds < 5:
-            # Phase 2: Start belt
-            self._start_belt()
-        elif 17 <= elapsed_seconds < 19:
-            # Phase 3: Raise belt
-            self._set_belt_position(UP)
-        elif elapsed_seconds >= 30:
-            # Phase 4: Complete sequence
-            self.digging = False
 
     def _process_image(self, cv_image, last_time_attr, publisher, is_depth=False):
         """
@@ -684,20 +619,6 @@ class ControllerParser(Node):
 
     # ------------------- Button processing functions -------------------
 
-    def _check_auto_toggle(self, buttons: Dict[str, Any]) -> None:
-        """
-        Check if autonomous mode should be toggled.
-        
-        Args:
-            buttons: Dictionary of button states
-        """
-        if buttons["select"] != self.select:
-            self.select = buttons["select"]
-            if self.select:
-                self.digging = not self.digging
-                mode = "started" if self.digging else "stopped"
-                self.get_logger().info(f"Autonomous digging {mode}")
-
     def _process_belt_controls(self, buttons: Dict[str, Any]) -> None:
         """
         Process belt-related button inputs.
@@ -705,14 +626,6 @@ class ControllerParser(Node):
         Args:
             buttons: Dictionary of button states
         """
-        # Y button cycles belt speeds
-        if buttons["button_y"] != self.button_y:
-            if buttons["button_y"]:
-                # Only cycle speeds on button press, not release
-                self.belt_speed_index = (self.belt_speed_index + 1) % len(self.belt_speeds)
-                self.get_logger().info(f"Belt speed set to level {self.belt_speed_index+1}/{len(self.belt_speeds)}")
-            self.button_y = buttons["button_y"]
-
         # B button => belt reverse, or off
         if buttons["button_b"] != self.button_b:
             self.button_b = buttons["button_b"]
@@ -737,12 +650,11 @@ class ControllerParser(Node):
             else:
                 self._set_belt_position(MOTOR_STOPPED)
 
-        # Left bumper => belt forward (with current speed index)
+        # Left bumper => belt forward
         if buttons["lbutton"] != self.lbutton:
             self.lbutton = buttons["lbutton"]
             if self.lbutton:
-                speed = self.belt_speeds[self.belt_speed_index]
-                self._set_belt_speed(speed)
+                self._set_belt_speed(MOTOR_FULL_FORWARD)
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
 

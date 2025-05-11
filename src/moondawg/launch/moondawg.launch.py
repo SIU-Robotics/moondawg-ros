@@ -29,8 +29,6 @@ def generate_launch_description():
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
     max_image_width = LaunchConfiguration('max_image_width', default='420')
-    auto_dig_duration_seconds = LaunchConfiguration('auto_dig_duration_seconds', default='30')
-    belt_speed_index = LaunchConfiguration('belt_speed_index', default='0')
     
     # Declare launch arguments so they can be passed on the command line
     args = [
@@ -106,18 +104,8 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'max_image_width',
-            default_value='640',
+            default_value='420',
             description='Maximum width for images (aspect ratio maintained)'
-        ),
-        DeclareLaunchArgument(
-            'auto_dig_duration_seconds',
-            default_value='30',
-            description='Duration of autonomous digging sequence in seconds'
-        ),
-        DeclareLaunchArgument(
-            'belt_speed_index',
-            default_value='0',
-            description='Initial belt speed index (0-2)'
         ),
     ]
     
@@ -207,9 +195,6 @@ def generate_launch_description():
                 {'image_compression_quality': image_compression_quality},
                 {'image_frame_rate': image_frame_rate},
                 {'max_image_width': max_image_width},
-                {'auto_dig_duration_seconds': auto_dig_duration_seconds},
-                {'belt_speed_index': belt_speed_index},
-                {'belt_speeds': [180, 125, 120]},  # You can also make this configurable if needed
                 {'debug': debug_mode}
             ]
         ),

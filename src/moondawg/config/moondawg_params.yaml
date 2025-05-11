@@ -6,16 +6,10 @@ controller_parser:
   joystick_deadzone: 0.1
   turn_sensitivity: 0.5
 
-  # Belt speeds (from fastest to slowest)
-  belt_speeds: [180, 125, 120]
-
   # Camera settings
   image_compression_quality: 15
   max_image_width: 640 # Maximum width for images (aspect ratio maintained)
   image_frame_rate: 15
-
-  # Autonomous operation
-  auto_dig_duration_seconds: 30
 
 i2c_node:
   bus_id: 1
