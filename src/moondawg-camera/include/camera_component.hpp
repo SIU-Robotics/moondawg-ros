@@ -114,5 +114,3 @@ private:
 };
 
 } // namespace moondawg
-
-#endif // MOONDAWG_CAMERA_NODE_HPP
