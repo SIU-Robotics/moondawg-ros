@@ -15,10 +15,3 @@ i2c_node:
   bus_id: 1
   heartbeat_interval: 1.0
   command_timeout: 5.0
-
-serial_node:
-  port: "/dev/ttyACM0"
-  baudrate: 9600
-  timeout: 1.0
-  write_timeout: 1.0
-  retry_interval: 5.0

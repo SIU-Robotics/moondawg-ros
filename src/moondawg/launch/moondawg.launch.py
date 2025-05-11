@@ -16,9 +16,6 @@ def generate_launch_description():
     realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
     realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
 
-    # use i2c or serial
-    useSerial = LaunchConfiguration('useSerial', default='false')
-    serial_port = LaunchConfiguration('serial_port', default='/dev/ttyACM0')
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
     
@@ -188,27 +185,11 @@ def generate_launch_description():
             package='moondawg',
             executable='i2c_node',
             name='i2c_node',
-            condition=IfCondition(IfCondition(useSerial).negate()),
             output='screen',
             parameters=[
                 {'bus_id': i2c_bus},
                 {'heartbeat_interval': 1.0},
                 {'command_timeout': 5.0},
-                {'debug': debug_mode}
-            ]
-        ),
-        Node(
-            package='moondawg',
-            executable='serial_node',
-            name='serial_node',
-            condition=IfCondition(useSerial),
-            output='screen',
-            parameters=[
-                {'port': serial_port},
-                {'baudrate': 9600},
-                {'timeout': 1.0},
-                {'write_timeout': 1.0},
-                {'retry_interval': 5.0},
                 {'debug': debug_mode}
             ]
         ),

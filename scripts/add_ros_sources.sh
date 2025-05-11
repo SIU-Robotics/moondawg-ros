@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
-# Check if running as root
+
+# Run as root
 if [ "$EUID" -ne 0 ]; then
     echo "This script must be run as root. Please run with 'sudo bash $0' or as root user."
     exit 1

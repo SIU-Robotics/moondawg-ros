@@ -22,7 +22,6 @@
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>image_tools</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>python3-serial</exec_depend>
   <exec_depend>python3-smbus2</exec_depend>
   <exec_depend>realsense2_camera</exec_depend>
   <exec_depend>realsense2_description</exec_depend>

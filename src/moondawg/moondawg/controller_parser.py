@@ -132,10 +132,6 @@ class ControllerParser(Node):
     def _declare_parameters(self) -> None:
         """Declare all ROS parameters for this node."""
         self.declare_parameter('joystick_deadzone', 0.07)
-        # Image processing parameters
-        self.declare_parameter('image_compression_quality', 20)
-        self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
-        self.declare_parameter('max_image_width', 640)  # Maximum width for images, aspect ratio maintained
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
@@ -148,33 +144,6 @@ class ControllerParser(Node):
         self.i2c_publisher = self.create_publisher(
             String, 
             '/i2c_node/command', 
-            10
-        )
-        
-        # Image publishers for Web UI
-        self.image_pub = self.create_publisher(
-            String, 
-            '/controller_parser/compressed_image', 
-            10
-        )
-        self.rs1_color_pub = self.create_publisher(
-            String, 
-            '/controller_parser/rs1_color_image', 
-            10
-        )
-        self.rs1_depth_pub = self.create_publisher(
-            String, 
-            '/controller_parser/rs1_depth_image', 
-            10
-        )
-        self.rs2_color_pub = self.create_publisher(
-            String, 
-            '/controller_parser/rs2_color_image', 
-            10
-        )
-        self.rs2_depth_pub = self.create_publisher(
-            String, 
-            '/controller_parser/rs2_depth_image', 
             10
         )
         
@@ -202,40 +171,6 @@ class ControllerParser(Node):
             Int8MultiArray, 
             '/controller_parser/gamepad_button', 
             self.button_callback, 
-            10
-        )
-        
-        # Camera image subscriptions
-        self.image_subscription = self.create_subscription(
-            Image, 
-            'image', 
-            self.image_translator, 
-            10
-        )
-        
-        # RealSense camera subscriptions
-        self.rs1_color_subscription = self.create_subscription(
-            Image, 
-            '/camera/realsense2_camera_1/color/image_raw', 
-            self.rs1_color_translator, 
-            10
-        )
-        self.rs1_depth_subscription = self.create_subscription(
-            Image, 
-            '/camera/realsense2_camera_1/depth/image_rect_raw', 
-            self.rs1_depth_translator, 
-            10
-        )
-        self.rs2_color_subscription = self.create_subscription(
-            Image, 
-            '/camera/realsense2_camera_2/color/image_raw', 
-            self.rs2_color_translator, 
-            10
-        )
-        self.rs2_depth_subscription = self.create_subscription(
-            Image, 
-            '/camera/realsense2_camera_2/depth/image_rect_raw', 
-            self.rs2_depth_translator, 
             10
         )
         
@@ -325,143 +260,6 @@ class ControllerParser(Node):
                 DiagnosticStatus.ERROR, 
                 f"Exception in gamepad button callback: {str(e)}"
             )
-
-    def _process_image(self, cv_image, last_time_attr, publisher, is_depth=False):
-        """
-        Common image processing function to optimize camera feed handling.
-        
-        Args:
-            cv_image: OpenCV image to process
-            last_time_attr: Attribute name for tracking last frame time
-            publisher: ROS publisher to send the processed image to
-            is_depth: True if this is a depth image (for specialized processing)
-            
-        Returns:
-            True if image was processed and published, False if skipped
-        """
-        try:
-            # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
-            frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
-            
-            # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, last_time_attr) and (current_time - getattr(self, last_time_attr)) < (1.0 / frame_rate):
-                return False
-            
-            setattr(self, last_time_attr, current_time)
-            
-            # Resize the image to reduce CPU usage
-            max_width = self.get_parameter('max_image_width').get_parameter_value().integer_value
-            if max_width > 0 and cv_image.shape[1] > max_width:
-                # Calculate new dimensions maintaining aspect ratio
-                aspect_ratio = cv_image.shape[0] / cv_image.shape[1]
-                new_width = max_width
-                new_height = int(new_width * aspect_ratio)
-                # Use INTER_NEAREST for depth images or INTER_AREA for color images (best for downsampling)
-                interpolation = cv2.INTER_NEAREST if is_depth else cv2.INTER_AREA
-                cv_image = cv2.resize(cv_image, (new_width, new_height), interpolation=interpolation)
-            
-            # Use a fixed quality value
-            quality = self.get_parameter('image_compression_quality').get_parameter_value().integer_value
-            
-            # Always use JPEG encoding
-            _, encoded_img = cv2.imencode('.jpg', cv_image, 
-                                        [cv2.IMWRITE_JPEG_QUALITY, quality])
-            mime_type = "image/jpeg"
-            
-            # Convert to base64 and publish
-            base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
-            data_with_mime = f"{mime_type},{base64_data}"
-            publisher.publish(String(data=data_with_mime))
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"Error processing image: {str(e)}")
-            return False
-    
-    def image_translator(self, message: Image) -> None:
-        """
-        Convert ROS Image messages to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message)
-            self._process_image(cv_image, '_last_frame_time', self.image_pub)
-        except Exception as e:
-            self.get_logger().error(f"Error processing camera image: {str(e)}")
-
-    def rs1_color_translator(self, message: Image) -> None:
-        """
-        Convert RealSense 1 color image to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the RealSense 1 color camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            self._process_image(cv_image, '_last_rs1_color_frame_time', self.rs1_color_pub)
-        except Exception as e:
-            self.get_logger().error(f"Error processing RealSense 1 color image: {str(e)}")
-    
-    def rs1_depth_translator(self, message: Image) -> None:
-        """
-        Convert RealSense 1 depth image to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the RealSense 1 depth camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
-            
-            # Normalize depth for visualization (16-bit to 8-bit)
-            cv_image_normalized = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-            
-            # Apply colormap for better visualization
-            cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
-            
-            self._process_image(cv_image_colormap, '_last_rs1_depth_frame_time', self.rs1_depth_pub, is_depth=True)
-        except Exception as e:
-            self.get_logger().error(f"Error processing RealSense 1 depth image: {str(e)}")
-    
-    def rs2_color_translator(self, message: Image) -> None:
-        """
-        Convert RealSense 2 color image to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the RealSense 2 color camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            self._process_image(cv_image, '_last_rs2_color_frame_time', self.rs2_color_pub)
-        except Exception as e:
-            self.get_logger().error(f"Error processing RealSense 2 color image: {str(e)}")
-    
-    def rs2_depth_translator(self, message: Image) -> None:
-        """
-        Convert RealSense 2 depth image to compressed base64 strings for web transmission.
-        
-        Args:
-            message: The Image message from the RealSense 2 depth camera
-        """
-        try:
-            # Convert ROS Image to OpenCV image
-            cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='passthrough')
-            
-            # Normalize depth for visualization (16-bit to 8-bit)
-            cv_image_normalized = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-            
-            # Apply colormap for better visualization
-            cv_image_colormap = cv2.applyColorMap(cv_image_normalized, cv2.COLORMAP_JET)
-            
-            self._process_image(cv_image_colormap, '_last_rs2_depth_frame_time', self.rs2_depth_pub, is_depth=True)
-        except Exception as e:
-            self.get_logger().error(f"Error processing RealSense 2 depth image: {str(e)}")
 
     def heartbeat(self) -> None:
         """

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
-# Check if script is running as root
+
+# Run as root
 if [ "$EUID" -ne 0 ]; then
     echo "This script must be run as root. Please run with 'sudo bash $0' or as root user."
     exit 1
 fi
 
-# Put the run script in /usr/local/bin instead of home directory
 touch /usr/local/bin/run_moondawg.sh
 echo """#!/bin/bash
 
