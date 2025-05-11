@@ -25,8 +25,6 @@ def generate_launch_description():
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     # General quality can still be launch args
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
-    # Note: image_frame_rate is kept for backward compatibility but no longer used for limiting
-    image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
     max_image_width = LaunchConfiguration('max_image_width', default='640') # Corrected default from 530
     
     # Declare launch arguments so they can be passed on the command line
@@ -97,11 +95,6 @@ def generate_launch_description():
             description='Image compression quality (1-100)'
         ),
         DeclareLaunchArgument(
-            'image_frame_rate',
-            default_value='15',
-            description='Frame rate for camera settings (no longer used for limiting)'
-        ),
-        DeclareLaunchArgument(
             'max_image_width',
             default_value='640', # Corrected default
             description='Maximum width for processed images, aspect ratio maintained'
@@ -141,7 +134,6 @@ def generate_launch_description():
                 {'joystick_deadzone': joystick_deadzone},
                 {'turn_sensitivity': turn_sensitivity},
                 {'image_compression_quality': image_compression_quality},
-                {'image_frame_rate': image_frame_rate},
                 {'max_image_width': max_image_width},
                 {'debug': debug_mode}
             ]
@@ -179,8 +171,8 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.profile': '640x480x' + str(image_frame_rate),
-                    'depth_module.depth_profile': '640x480x' + str(image_frame_rate),
+                    'rgb_camera.profile': '640x480x15',
+                    'depth_module.depth_profile': '640x480x15',
                     'clip_distance': 3.0, # Example: Clip depth at 3 meters
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False, # Disable pointcloud if not used by compression
@@ -201,8 +193,8 @@ def generate_launch_description():
                     'enable_depth': True,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.profile': '640x480,' + str(image_frame_rate),
-                    'depth_module.depth_profile': '640x480x' + str(image_frame_rate),
+                    'rgb_camera.profile': '640x480x15',
+                    'depth_module.depth_profile': '640x480x15',
                     'clip_distance': 6.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
