@@ -36,9 +36,6 @@ ros.on("connection", function () {
   document.getElementById("ros-status-text").textContent = "Connected";
 
   setInterval(() => connectionTopic.publish(connectionStatus), 250);
-
-  // Fetch parameters when connected
-  fetchParameters();
 });
 
 ros.on("error", function (error) {
