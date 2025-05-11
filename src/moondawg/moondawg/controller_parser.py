@@ -329,13 +329,11 @@ class ControllerParser(Node):
         speed_magnitude_factor = abs(r_x_f)
         speed_offset = int((MOTOR_FULL_FORWARD - MOTOR_STOPPED) * speed_magnitude_factor)
 
+        self._set_steering_angle(1, 45)  # Front Left
+        self._set_steering_angle(2, 135)   # Front Right
+        self._set_steering_angle(3, 135)  # Rear Left (angling right for clockwise)
+        self._set_steering_angle(4, 45)   # Rear Right (angling left for clockwise)
         if r_x_f > 0:  # Clockwise rotation
-            # Angles: FL points inward-right, FR inward-left, RL inward-right, RR inward-left
-            self._set_steering_angle(1, 135)  # Front Left
-            self._set_steering_angle(2, 45)   # Front Right
-            self._set_steering_angle(3, 135)  # Rear Left (angling right for clockwise)
-            self._set_steering_angle(4, 45)   # Rear Right (angling left for clockwise)
-
             # Speeds for clockwise: Left wheels forward, Right wheels reverse
             fl_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             fr_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
@@ -344,12 +342,6 @@ class ControllerParser(Node):
             self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
 
         elif r_x_f < 0:  # Counter-clockwise rotation
-            # Angles: FL points inward-left, FR inward-right, RL inward-left, RR inward-right
-            self._set_steering_angle(1, 45)   # Front Left
-            self._set_steering_angle(2, 135)  # Front Right
-            self._set_steering_angle(3, 45)   # Rear Left (angling left for CCW)
-            self._set_steering_angle(4, 135)  # Rear Right (angling right for CCW)
-
             # Speeds for counter-clockwise: Left wheels reverse, Right wheels forward
             fl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             fr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
