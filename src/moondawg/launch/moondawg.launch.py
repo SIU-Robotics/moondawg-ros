@@ -3,7 +3,8 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.substitutions import LaunchConfiguration, EnvironmentVariable
 from launch.conditions import IfCondition
-from launch_ros.actions import Node
+from launch_ros.actions import Node, ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
 
 def generate_launch_description():
     """Generate launch description for moondawg package."""    
@@ -105,8 +106,8 @@ def generate_launch_description():
         ),
     ]
     
-    # Define nodes
-    nodes = [
+    # Define regular nodes (not part of the camera composition)
+    regular_nodes = [
         Node(
             package='rosbridge_server',
             executable='rosbridge_websocket',
@@ -127,44 +128,6 @@ def generate_launch_description():
             parameters=[
                 {'device': camera_device},
                 {'fps': 15.0}
-            ]
-        ),
-        Node(
-            package='realsense2_camera',
-            executable='realsense2_camera_node',
-            name='realsense2_camera_1',
-            output='screen',
-            condition=IfCondition(enable_depth1),
-            parameters=[
-                {'serial_no': realsense1_serial},
-                {'device_type': 'd435'},
-                {'enable_color': True},
-                {'enable_depth': True},
-                {'depth_fps': 15.0},
-                {'color_fps': 15.0},
-                {'filters': 'pointcloud'},
-                {'enable_sync': True},
-                {'align_depth': True},
-                {'camera_name': 'camera1'}
-            ]
-        ),
-        Node(
-            package='realsense2_camera',
-            executable='realsense2_camera_node',
-            name='realsense2_camera_2',
-            output='screen',
-            condition=IfCondition(enable_depth2),
-            parameters=[
-                {'serial_no': realsense2_serial},
-                {'device_type': 'd456'},
-                {'enable_color': True},
-                {'enable_depth': True},
-                {'depth_fps': 15.0},
-                {'color_fps': 15.0},
-                {'filters': 'pointcloud'},
-                {'enable_sync': True},
-                {'align_depth': True},
-                {'camera_name': 'camera2'}
             ]
         ),
         Node(
@@ -192,23 +155,75 @@ def generate_launch_description():
                 {'command_timeout': 5.0},
                 {'debug': debug_mode}
             ]
-        ),
-        Node(
-            package='moondawg',
-            executable='camera_node',
-            name='camera_node',
-            output='screen',
-            parameters=[
-                {'image_compression_quality': image_compression_quality},
-                {'image_frame_rate': image_frame_rate},
-                {'max_image_width': max_image_width},
-                {'debug': debug_mode}
-            ]
         )
     ]
     
+    # Define the camera composition container with intra-process communication
+    camera_container = ComposableNodeContainer(
+        name='camera_container',
+        package='rclcpp_components',
+        executable='component_container',
+        namespace='',
+        composable_node_descriptions=[
+            # RealSense camera 1 as a composable node
+            ComposableNode(
+                package='realsense2_camera',
+                plugin='realsense2_camera::RealSenseNodeFactory',
+                name='realsense2_camera_1',
+                condition=IfCondition(enable_depth1),
+                parameters=[
+                    {'serial_no': realsense1_serial},
+                    {'device_type': 'd435'},
+                    {'enable_color': True},
+                    {'enable_depth': True},
+                    {'depth_fps': 15.0},
+                    {'color_fps': 15.0},
+                    {'filters': 'pointcloud'},
+                    {'enable_sync': True},
+                    {'align_depth': True},
+                    {'camera_name': 'camera1'},
+                    {'use_intra_process_comms': True}
+                ]
+            ),
+            # RealSense camera 2 as a composable node
+            ComposableNode(
+                package='realsense2_camera',
+                plugin='realsense2_camera::RealSenseNodeFactory',
+                name='realsense2_camera_2',
+                condition=IfCondition(enable_depth2),
+                parameters=[
+                    {'serial_no': realsense2_serial},
+                    {'device_type': 'd456'},
+                    {'enable_color': True},
+                    {'enable_depth': True},
+                    {'depth_fps': 15.0},
+                    {'color_fps': 15.0},
+                    {'filters': 'pointcloud'},
+                    {'enable_sync': True},
+                    {'align_depth': True},
+                    {'camera_name': 'camera2'},
+                    {'use_intra_process_comms': True}
+                ]
+            ),
+            # Camera node for processing the RealSense data
+            ComposableNode(
+                package='moondawg',
+                plugin='moondawg::CameraNode',
+                name='camera_node',
+                parameters=[
+                    {'image_compression_quality': image_compression_quality},
+                    {'image_frame_rate': image_frame_rate},
+                    {'max_image_width': max_image_width},
+                    {'debug': debug_mode},
+                    {'use_intra_process_comms': True}
+                ]
+            )
+        ],
+        output='screen',
+    )
+    
     # Create and return launch description
-    return LaunchDescription(args + nodes)
+    return LaunchDescription(args + regular_nodes + [camera_container])
 
 if __name__ == '__main__':
     generate_launch_description()

@@ -8,6 +8,7 @@ import cv2
 import base64
 import datetime
 from typing import Dict, Any
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 class CameraNode(Node):
     """
@@ -19,8 +20,8 @@ class CameraNode(Node):
     - Managing multiple camera streams
     """
 
-    def __init__(self):
-        super().__init__(node_name='camera_node')
+    def __init__(self, node_name='camera_node'):
+        super().__init__(node_name=node_name)
         
         # Initialize state variables
         self._init_state_variables()
@@ -67,41 +68,61 @@ class CameraNode(Node):
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
         self.declare_parameter('max_image_width', 640)  # Maximum width for images, aspect ratio maintained
+        self.declare_parameter('use_intra_process_comms', True)  # Parameter for intra-process communication
 
     def _setup_communications(self) -> None:
         """Set up all publishers, subscribers, and timers."""
+        # Get intra-process communication setting
+        use_ipc = self.get_parameter('use_intra_process_comms').get_parameter_value().bool_value
+        
+        # Define QoS profile optimized for camera streaming with intra-process communication
+        # For image data, we want to prioritize latest data and low latency
+        camera_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,  # For camera feeds, we prefer getting the latest frame
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,  # Only keep the latest message
+            durability=QoSDurabilityPolicy.VOLATILE  # No need to store past messages
+        )
+        
+        # Standard QoS for diagnostic data
+        reliable_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+        
         # Diagnostic publisher
         self.diag_topic = self.create_publisher(
             DiagnosticStatus, 
             '/camera_node/diag', 
-            10
+            reliable_qos
         )
         
         # Image publishers for Web UI
         self.image_pub = self.create_publisher(
             String, 
             '/camera_node/compressed_image', 
-            10
+            reliable_qos
         )
         self.rs1_color_pub = self.create_publisher(
             String, 
             '/camera_node/rs1_color_image', 
-            10
+            reliable_qos
         )
         self.rs1_depth_pub = self.create_publisher(
             String, 
             '/camera_node/rs1_depth_image', 
-            10
+            reliable_qos
         )
         self.rs2_color_pub = self.create_publisher(
             String, 
             '/camera_node/rs2_color_image', 
-            10
+            reliable_qos
         )
         self.rs2_depth_pub = self.create_publisher(
             String, 
             '/camera_node/rs2_depth_image', 
-            10
+            reliable_qos
         )
         
         # Camera image subscriptions
@@ -109,33 +130,33 @@ class CameraNode(Node):
             Image, 
             'image', 
             self.image_translator, 
-            10
+            camera_qos
         )
         
         # RealSense camera subscriptions
         self.rs1_color_subscription = self.create_subscription(
             Image, 
-            '/camera/realsense2_camera_1/color/image_raw', 
+            '/camera1/color/image_raw', 
             self.rs1_color_translator, 
-            10
+            camera_qos
         )
         self.rs1_depth_subscription = self.create_subscription(
             Image, 
-            '/camera/realsense2_camera_1/depth/image_rect_raw', 
+            '/camera1/depth/image_rect_raw', 
             self.rs1_depth_translator, 
-            10
+            camera_qos
         )
         self.rs2_color_subscription = self.create_subscription(
             Image, 
-            '/camera/realsense2_camera_2/color/image_raw', 
+            '/camera2/color/image_raw', 
             self.rs2_color_translator, 
-            10
+            camera_qos
         )
         self.rs2_depth_subscription = self.create_subscription(
             Image, 
-            '/camera/realsense2_camera_2/depth/image_rect_raw', 
+            '/camera2/depth/image_rect_raw', 
             self.rs2_depth_translator, 
-            10
+            camera_qos
         )
         
         # Heartbeat timer
@@ -345,3 +366,8 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+# Make the node compatible with component loading
+# This function allows the node to be loaded as a component with ROS2 component manager
+def create_camera_node_component():
+    return CameraNode('camera_node')

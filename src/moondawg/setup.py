@@ -32,6 +32,9 @@ setup(
             'i2c_node = moondawg.i2c_node:main',
             'camera_node = moondawg.camera_node:main',
         ],
+        'rclpy_components': [
+            'moondawg::CameraNode = moondawg.camera_node:create_camera_node_component',
+        ],
     },
     classifiers=[
         'Environment :: Console',
