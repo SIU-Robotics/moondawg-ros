@@ -121,7 +121,7 @@ var controllerI2CHistoryTopic = new ROSLIB.Topic({
   ros: ros,
   name: "/controller_parser/i2c_history",
   messageType: "std_msgs/String",
-}
+});
 
 // Subscribe to camera node topics
 cameraNodeImageTopic.subscribe(function (message) {
