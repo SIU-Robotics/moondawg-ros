@@ -23,6 +23,16 @@ def generate_launch_description():
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
     
+    # Controller parser parameters
+    joystick_deadzone = LaunchConfiguration('joystick_deadzone', default='0.1')
+    turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
+    image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
+    image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
+    adaptive_quality = LaunchConfiguration('adaptive_quality', default='true')
+    use_webp = LaunchConfiguration('use_webp', default='true')
+    auto_dig_duration_seconds = LaunchConfiguration('auto_dig_duration_seconds', default='30')
+    belt_speed_index = LaunchConfiguration('belt_speed_index', default='0')
+    
     # Declare launch arguments so they can be passed on the command line
     args = [
         DeclareLaunchArgument(
@@ -74,6 +84,46 @@ def generate_launch_description():
             'debug',
             default_value='false',
             description='Enable debug mode with additional logging'
+        ),
+        DeclareLaunchArgument(
+            'joystick_deadzone',
+            default_value='0.1',
+            description='Deadzone for joystick inputs (0.0-1.0)'
+        ),
+        DeclareLaunchArgument(
+            'turn_sensitivity',
+            default_value='0.5',
+            description='Sensitivity for turn controls (0.0-1.0)'
+        ),
+        DeclareLaunchArgument(
+            'image_compression_quality',
+            default_value='20',
+            description='Image compression quality (1-100)'
+        ),
+        DeclareLaunchArgument(
+            'image_frame_rate',
+            default_value='15',
+            description='Frame rate for image processing'
+        ),
+        DeclareLaunchArgument(
+            'adaptive_quality',
+            default_value='true',
+            description='Enable adaptive quality for image compression'
+        ),
+        DeclareLaunchArgument(
+            'use_webp',
+            default_value='true',
+            description='Use WebP format for image compression'
+        ),
+        DeclareLaunchArgument(
+            'auto_dig_duration_seconds',
+            default_value='30',
+            description='Duration of autonomous digging sequence in seconds'
+        ),
+        DeclareLaunchArgument(
+            'belt_speed_index',
+            default_value='0',
+            description='Initial belt speed index (0-2)'
         ),
     ]
     
@@ -158,9 +208,15 @@ def generate_launch_description():
             name='controller_parser',
             output='screen',
             parameters=[
-                {'joystick_deadzone': 0.1},
-                {'turn_sensitivity': 0.5},
-                {'image_compression_quality': 20},
+                {'joystick_deadzone': joystick_deadzone},
+                {'turn_sensitivity': turn_sensitivity},
+                {'image_compression_quality': image_compression_quality},
+                {'image_frame_rate': image_frame_rate},
+                {'adaptive_quality': adaptive_quality},
+                {'use_webp': use_webp},
+                {'auto_dig_duration_seconds': auto_dig_duration_seconds},
+                {'belt_speed_index': belt_speed_index},
+                {'belt_speeds': [180, 125, 120]},  # You can also make this configurable if needed
                 {'debug': debug_mode}
             ]
         ),
