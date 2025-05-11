@@ -15,7 +15,7 @@
 namespace moondawg
 {
 
-CameraNode::CameraNode(const rclcpp::NodeOptions & options)
+CameraComponent::CameraComponent(const rclcpp::NodeOptions & options)
 : Node("camera_node", options), last_processed_time_(0.0) // Initialize last_processed_time_
 {
   initStateVariables();
@@ -24,7 +24,7 @@ CameraNode::CameraNode(const rclcpp::NodeOptions & options)
   RCLCPP_INFO(this->get_logger(), "Camera node initialized and ready. Subscribing to 'image_raw', publishing to 'image_compressed'.");
 }
 
-void CameraNode::initStateVariables()
+void CameraComponent::initStateVariables()
 {
   diagnostic_status_.name = this->get_name();
   diagnostic_status_.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
@@ -32,7 +32,7 @@ void CameraNode::initStateVariables()
   latency_stats_ = {0, 0.0, 0.0, 0.0, 0.0}; // Initialize latency stats
 }
 
-void CameraNode::declareParameters()
+void CameraComponent::declareParameters()
 {
   // Parameter for intra-process communication
   this->declare_parameter("use_intra_process_comms", true);
@@ -43,7 +43,7 @@ void CameraNode::declareParameters()
   this->declare_parameter("camera_key", "camera"); // Default key
 }
 
-void CameraNode::setupCommunications()
+void CameraComponent::setupCommunications()
 {
   use_intra_process_comms_ = this->get_parameter("use_intra_process_comms").as_bool();
   image_compression_quality_ = this->get_parameter("image_compression_quality").as_int();
@@ -67,7 +67,7 @@ void CameraNode::setupCommunications()
   image_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
     "image_raw", // Input topic, to be remapped if necessary
     camera_qos,
-    std::bind(&CameraNode::imageCallback, this, std::placeholders::_1)
+    std::bind(&CameraComponent::imageCallback, this, std::placeholders::_1)
   );
 
   // Publisher for compressed image string (output)
@@ -78,13 +78,13 @@ void CameraNode::setupCommunications()
 
   heartbeat_timer_ = this->create_wall_timer(
     std::chrono::seconds(1), 
-    std::bind(&CameraNode::heartbeat, this)
+    std::bind(&CameraComponent::heartbeat, this)
   );
   
   setDiagnosticStatus(diagnostic_msgs::msg::DiagnosticStatus::OK, "Camera node ready");
 }
 
-void CameraNode::imageCallback(const sensor_msgs::msg::Image::SharedPtr message)
+void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr message)
 {
   try
   {
@@ -136,7 +136,7 @@ void CameraNode::imageCallback(const sensor_msgs::msg::Image::SharedPtr message)
   }
 }
 
-bool CameraNode::processAndPublishImage(const cv::Mat & cv_image, const std::string & input_topic_name)
+bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std::string & input_topic_name)
 {
   try
   {
@@ -228,7 +228,7 @@ bool CameraNode::processAndPublishImage(const cv::Mat & cv_image, const std::str
   }
 }
 
-void CameraNode::heartbeat()
+void CameraComponent::heartbeat()
 {
   diagnostic_status_.values.clear(); 
   // Add latency stats to diagnostics
@@ -255,7 +255,7 @@ void CameraNode::heartbeat()
   diag_publisher_->publish(diagnostic_status_);
 }
 
-void CameraNode::setDiagnosticStatus(uint8_t level, const std::string& message)
+void CameraComponent::setDiagnosticStatus(uint8_t level, const std::string& message)
 {
   diagnostic_status_.level = level;
   diagnostic_status_.message = message;
@@ -268,4 +268,4 @@ void CameraNode::setDiagnosticStatus(uint8_t level, const std::string& message)
 } // namespace moondawg
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(moondawg::CameraNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(moondawg::CameraComponent)

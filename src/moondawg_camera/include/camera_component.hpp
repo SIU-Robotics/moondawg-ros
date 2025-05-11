@@ -19,7 +19,7 @@ namespace moondawg
 {
 
 /**
- * @class CameraNode
+ * @class CameraComponent
  * @brief Node for handling camera image processing, compression, and publishing.
  *
  * This node handles:
@@ -29,19 +29,19 @@ namespace moondawg
  * - Publishing compressed images as base64 strings
  * - Managing diagnostic information including processing latency
  */
-class CameraNode : public rclcpp::Node
+class CameraComponent : public rclcpp::Node
 {
 public:
   /**
-   * @brief Constructor for the CameraNode composable node.
+   * @brief Constructor for the CameraComponent composable node.
    * @param options Node options for configuration
    */
-  explicit CameraNode(const rclcpp::NodeOptions & options);
+  explicit CameraComponent(const rclcpp::NodeOptions & options);
 
   /**
    * @brief Virtual destructor
    */
-  virtual ~CameraNode() = default;
+  virtual ~CameraComponent() = default;
 
 private:
   /**
