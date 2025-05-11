@@ -169,10 +169,8 @@ def generate_launch_description():
             'serial_no': realsense1_serial,
             'enable_color': True,
             'enable_depth': True,
-            # Add other realsense specific parameters here
-            # e.g., image resolutions, frame rates for the camera hardware itself
-            'color_width': 640, 'color_height': 480, 'color_fps': 30,
-            'depth_width': 640, 'depth_height': 480, 'depth_fps': 30,
+            'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
+            'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
             'clip_distance': 3.0, # Example: Clip depth at 3 meters
             'allow_no_texture_points': True,
             'pointcloud.enable': False, # Disable pointcloud if not used by compression
@@ -190,9 +188,9 @@ def generate_launch_description():
             'serial_no': realsense2_serial,
             'enable_color': True,
             'enable_depth': True,
-            'color_width': 640, 'color_height': 480, 'color_fps': 30,
-            'depth_width': 640, 'depth_height': 480, 'depth_fps': 30,
-            'clip_distance': 3.0,
+            'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
+            'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
+            'clip_distance': 6.0,
             'allow_no_texture_points': True,
             'pointcloud.enable': False,
         }],
