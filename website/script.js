@@ -267,7 +267,117 @@ i2cDiagTopic.subscribe(function (message) {
 
 cameraNodeDiagTopic.subscribe(function (message) {
   document.getElementById("camera_node_diag").innerHTML = message.message;
+
+  // Extract and display latency information from diagnostic values
+  let latencyInfo = {};
+  let hasLatencyData = false;
+
+  if (message.values && message.values.length > 0) {
+    message.values.forEach(function (kv) {
+      // Check for latency values in the format: camera_key_latency_type
+      if (kv.key.includes("_latency_ms")) {
+        hasLatencyData = true;
+        const parts = kv.key.split("_");
+        const cameraType = parts[0]; // e.g., 'main_camera', 'rs1_color'
+        const metricType = parts[parts.length - 2]; // e.g., 'last', 'avg', 'max'
+
+        // Initialize camera entry if it doesn't exist
+        if (!latencyInfo[cameraType]) {
+          latencyInfo[cameraType] = {};
+        }
+
+        // Store the latency value
+        latencyInfo[cameraType][metricType] = parseFloat(kv.value).toFixed(2);
+      }
+
+      // Also capture frame counts
+      if (kv.key.includes("_frames")) {
+        const cameraType = kv.key.split("_")[0];
+        if (!latencyInfo[cameraType]) {
+          latencyInfo[cameraType] = {};
+        }
+        latencyInfo[cameraType]["frames"] = kv.value;
+      }
+    });
+  }
+
+  // Display the latency information
+  const latencyPanel = document.getElementById("camera_latency_panel");
+
+  if (hasLatencyData) {
+    // Get camera names for consistent ordering
+    const cameraNames = Object.keys(latencyInfo).sort();
+
+    let tableHTML = `
+      <table class="table table-sm table-striped compact-table mb-0">
+        <thead>
+          <tr>
+            <th>Camera</th>
+            <th>Last (ms)</th>
+            <th>Avg (ms)</th>
+            <th>Max (ms)</th>
+            <th>Frames</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    cameraNames.forEach(function (camera) {
+      const info = latencyInfo[camera];
+      tableHTML += `
+        <tr>
+          <td>${formatCameraName(camera)}</td>
+          <td>${colorCodeLatency(info.last)}</td>
+          <td>${colorCodeLatency(info.avg)}</td>
+          <td>${colorCodeLatency(info.max)}</td>
+          <td>${info.frames || "0"}</td>
+        </tr>
+      `;
+    });
+
+    tableHTML += `
+        </tbody>
+      </table>
+    `;
+
+    latencyPanel.innerHTML = tableHTML;
+  } else {
+    latencyPanel.innerHTML = `
+      <div class="text-center text-muted py-2">
+        <small>No latency data available</small>
+      </div>
+    `;
+  }
 });
+
+// Helper function to format camera names for display
+function formatCameraName(cameraKey) {
+  const nameMap = {
+    main_camera: "Main Camera",
+    rs1_color: "RS1 RGB",
+    rs1_depth: "RS1 Depth",
+    rs2_color: "RS2 RGB",
+    rs2_depth: "RS2 Depth",
+  };
+
+  return nameMap[cameraKey] || cameraKey;
+}
+
+// Helper function to apply color coding to latency values based on thresholds
+function colorCodeLatency(value) {
+  if (!value || value === "N/A") return `<span>${value}</span>`;
+
+  const latencyValue = parseFloat(value);
+  let className = "text-success";
+
+  if (latencyValue > 50) {
+    className = "text-danger";
+  } else if (latencyValue > 20) {
+    className = "text-warning";
+  }
+
+  return `<span class="latency-value ${className}">${value}</span>`;
+}
 
 // Subscribe to I2C command history topic from controller_parser only
 controllerI2CHistoryTopic.subscribe(function (message) {

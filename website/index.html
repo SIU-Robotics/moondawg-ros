@@ -125,6 +125,18 @@
             padding: 8px 0;
             margin-bottom: 12px;
         }
+        /* Latency table styling */
+        .compact-table th, .compact-table td {
+            padding: 4px 8px !important;
+            font-size: 0.85rem;
+        }
+        .diagnostic-panel table {
+            margin-bottom: 0 !important;
+        }
+        .latency-value {
+            font-family: monospace;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -225,6 +237,17 @@
                             <div class="card-body p-2">
                                 <h6 class="card-title">Camera Node Diagnostics</h6>
                                 <div class="diagnostic-panel" id="camera_node_diag">Waiting for data...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="card controller-card mb-2">
+                            <div class="card-body p-2">
+                                <h6 class="card-title">Camera Latency Information</h6>
+                                <div class="diagnostic-panel" id="camera_latency_panel">
+                                    <div class="text-center text-muted py-2">
+                                        <small>Waiting for latency data...</small>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

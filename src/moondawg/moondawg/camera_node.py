@@ -45,6 +45,15 @@ class CameraNode(Node):
         self._last_rs2_color_time = 0.0
         self._last_rs2_depth_time = 0.0
         
+        # Latency tracking for each camera feed
+        self._latency_stats = {
+            'main_camera': {'count': 0, 'total_latency': 0.0, 'avg_latency': 0.0, 'max_latency': 0.0, 'last_latency': 0.0},
+            'rs1_color': {'count': 0, 'total_latency': 0.0, 'avg_latency': 0.0, 'max_latency': 0.0, 'last_latency': 0.0},
+            'rs1_depth': {'count': 0, 'total_latency': 0.0, 'avg_latency': 0.0, 'max_latency': 0.0, 'last_latency': 0.0},
+            'rs2_color': {'count': 0, 'total_latency': 0.0, 'avg_latency': 0.0, 'max_latency': 0.0, 'last_latency': 0.0},
+            'rs2_depth': {'count': 0, 'total_latency': 0.0, 'avg_latency': 0.0, 'max_latency': 0.0, 'last_latency': 0.0}
+        }
+        
         # Diagnostic status setup
         self.diagnostic_status = DiagnosticStatus(
             name=self.get_name(), 
@@ -135,7 +144,7 @@ class CameraNode(Node):
         # Set initial diagnostic status
         self.set_diagnostic_status(DiagnosticStatus.OK, "Camera node ready")
 
-    def _process_image(self, cv_image, last_time_attr, publisher, is_depth=False):
+    def _process_image(self, cv_image, last_time_attr, publisher, is_depth=False, camera_key=None):
         """
         Common image processing function to optimize camera feed handling.
         
@@ -144,20 +153,23 @@ class CameraNode(Node):
             last_time_attr: Attribute name for tracking last frame time
             publisher: ROS publisher to send the processed image to
             is_depth: True if this is a depth image (for specialized processing)
+            camera_key: Key to identify the camera for latency tracking
             
         Returns:
             True if image was processed and published, False if skipped
         """
         try:
+            # Start processing time for latency measurement
+            processing_start_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
+            
             # Check frame rate control - only process every nth frame
-            current_time = self.get_clock().now().nanoseconds / 1e9  # Convert to seconds
             frame_rate = self.get_parameter('image_frame_rate').get_parameter_value().integer_value
             
             # Skip frames based on frame rate setting (basic throttling)
-            if hasattr(self, last_time_attr) and (current_time - getattr(self, last_time_attr)) < (1.0 / frame_rate):
+            if hasattr(self, last_time_attr) and (processing_start_time - getattr(self, last_time_attr)) < (1.0 / frame_rate):
                 return False
             
-            setattr(self, last_time_attr, current_time)
+            setattr(self, last_time_attr, processing_start_time)
             
             # Resize the image to reduce CPU usage
             max_width = self.get_parameter('max_image_width').get_parameter_value().integer_value
@@ -182,6 +194,25 @@ class CameraNode(Node):
             base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
             data_with_mime = f"{mime_type},{base64_data}"
             publisher.publish(String(data=data_with_mime))
+            
+            # Calculate and store latency information
+            if camera_key and camera_key in self._latency_stats:
+                processing_end_time = self.get_clock().now().nanoseconds / 1e9
+                latency = processing_end_time - processing_start_time
+                
+                # Update latency statistics
+                self._latency_stats[camera_key]['count'] += 1
+                self._latency_stats[camera_key]['total_latency'] += latency
+                self._latency_stats[camera_key]['avg_latency'] = (
+                    self._latency_stats[camera_key]['total_latency'] / 
+                    self._latency_stats[camera_key]['count']
+                )
+                self._latency_stats[camera_key]['max_latency'] = max(
+                    self._latency_stats[camera_key]['max_latency'], 
+                    latency
+                )
+                self._latency_stats[camera_key]['last_latency'] = latency
+            
             return True
             
         except Exception as e:
@@ -198,7 +229,7 @@ class CameraNode(Node):
         try:
             # Convert ROS Image to OpenCV image
             cv_image = self.br.imgmsg_to_cv2(message)
-            self._process_image(cv_image, '_last_frame_time', self.image_pub)
+            self._process_image(cv_image, '_last_frame_time', self.image_pub, camera_key='main_camera')
         except Exception as e:
             self.get_logger().error(f"Error processing camera image: {str(e)}")
     
@@ -206,7 +237,7 @@ class CameraNode(Node):
         """Process RealSense 1 color camera images."""
         try:
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            self._process_image(cv_image, '_last_rs1_color_time', self.rs1_color_pub)
+            self._process_image(cv_image, '_last_rs1_color_time', self.rs1_color_pub, camera_key='rs1_color')
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense1 color image: {str(e)}")
     
@@ -218,7 +249,7 @@ class CameraNode(Node):
             cv_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             # Apply a colormap for better visualization
             cv_image = cv2.applyColorMap(cv_image, cv2.COLORMAP_JET)
-            self._process_image(cv_image, '_last_rs1_depth_time', self.rs1_depth_pub, is_depth=True)
+            self._process_image(cv_image, '_last_rs1_depth_time', self.rs1_depth_pub, is_depth=True, camera_key='rs1_depth')
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense1 depth image: {str(e)}")
     
@@ -226,7 +257,7 @@ class CameraNode(Node):
         """Process RealSense 2 color camera images."""
         try:
             cv_image = self.br.imgmsg_to_cv2(message, desired_encoding='bgr8')
-            self._process_image(cv_image, '_last_rs2_color_time', self.rs2_color_pub)
+            self._process_image(cv_image, '_last_rs2_color_time', self.rs2_color_pub, camera_key='rs2_color')
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense2 color image: {str(e)}")
     
@@ -238,7 +269,7 @@ class CameraNode(Node):
             cv_image = cv2.normalize(cv_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             # Apply a colormap for better visualization
             cv_image = cv2.applyColorMap(cv_image, cv2.COLORMAP_JET)
-            self._process_image(cv_image, '_last_rs2_depth_time', self.rs2_depth_pub, is_depth=True)
+            self._process_image(cv_image, '_last_rs2_depth_time', self.rs2_depth_pub, is_depth=True, camera_key='rs2_depth')
         except Exception as e:
             self.get_logger().error(f"Error processing RealSense2 depth image: {str(e)}")
     
@@ -246,15 +277,58 @@ class CameraNode(Node):
         """Update and publish diagnostic status with the given level and message."""
         self.diagnostic_status.level = level
         self.diagnostic_status.message = message
-        self.diagnostic_status.values = [
+        
+        # Create latency values for diagnostics
+        values = [
             KeyValue(key='node_name', value=self.get_name()),
             KeyValue(key='timestamp', value=str(self.get_clock().now().seconds_nanoseconds()))
         ]
+        
+        # Add latency information for each camera
+        for camera_key, stats in self._latency_stats.items():
+            if stats['count'] > 0:
+                # Format to 2 decimal places for readability (convert to ms for easier reading)
+                last_latency_ms = stats['last_latency'] * 1000
+                avg_latency_ms = stats['avg_latency'] * 1000
+                max_latency_ms = stats['max_latency'] * 1000
+                
+                values.extend([
+                    KeyValue(key=f'{camera_key}_frames', value=str(stats['count'])),
+                    KeyValue(key=f'{camera_key}_last_latency_ms', value=f'{last_latency_ms:.2f}'),
+                    KeyValue(key=f'{camera_key}_avg_latency_ms', value=f'{avg_latency_ms:.2f}'),
+                    KeyValue(key=f'{camera_key}_max_latency_ms', value=f'{max_latency_ms:.2f}')
+                ])
+        
+        self.diagnostic_status.values = values
         self.diag_topic.publish(self.diagnostic_status)
     
     def heartbeat(self) -> None:
         """Publish regular heartbeat messages to confirm node is alive."""
-        self.set_diagnostic_status(DiagnosticStatus.OK, "Camera node heartbeat")
+        # Create a summary of latency for all cameras
+        latency_summary = ""
+        active_cameras = 0
+        
+        for camera_key, stats in self._latency_stats.items():
+            if stats['count'] > 0:
+                active_cameras += 1
+                # Convert to ms for more readable values
+                last_latency_ms = stats['last_latency'] * 1000
+                avg_latency_ms = stats['avg_latency'] * 1000
+                
+                # Add to the summary
+                latency_summary += f"{camera_key}: {last_latency_ms:.1f}ms (avg: {avg_latency_ms:.1f}ms) | "
+        
+        # Trim the trailing separator
+        if latency_summary:
+            latency_summary = latency_summary[:-3]
+        
+        # Set the message based on active cameras
+        if active_cameras == 0:
+            message = "Camera node heartbeat - No active cameras"
+        else:
+            message = f"Camera node heartbeat - Latency: {latency_summary}"
+        
+        self.set_diagnostic_status(DiagnosticStatus.OK, message)
 
 def main(args=None):
     rclpy.init(args=args)
