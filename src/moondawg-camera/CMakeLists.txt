@@ -17,8 +17,6 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(OpenCV REQUIRED)
 
-add_subdirectory (../lib lib)
-
 # Include directories
 include_directories(
   include
