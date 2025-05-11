@@ -97,6 +97,13 @@ private:
   int image_frame_rate_;  // Kept for backward compatibility but no longer used for limiting
   int max_image_width_;
   std::string camera_key_; 
+  
+  // New optimization parameters
+  bool is_depth_camera_;
+  int skip_frames_;
+  bool downsample_before_processing_;
+  bool use_optimized_encoding_;
+  int frame_count_;
 
   // Variables for latency tracking
   double last_processed_time_;

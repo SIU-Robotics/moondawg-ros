@@ -176,8 +176,14 @@ def generate_launch_description():
                     'clip_distance': 3.0, # Example: Clip depth at 3 meters
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False, # Disable pointcloud if not used by compression
-                    'enable_sync': True, # Synchronize color and depth streams
+                    'enable_sync': False, # Disable sync for better performance
                     'align_depth.enable': True, # Align depth to color by default
+                    'filters': '', # Disable any post-processing filters
+                    'depth_fps': 15.0, # Match FPS with profile
+                    'color_fps': 15.0,
+                    'device_type': 'D435', # Explicitly set device type if known
+                    'depth_module.global_time_enabled': False, # Disable for performance
+                    'enable_auto_exposure': True, # Automatic exposure for better quality
                 }],
                 condition=IfCondition(enable_depth1)
             ),
@@ -198,8 +204,15 @@ def generate_launch_description():
                     'clip_distance': 6.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
-                    'enable_sync': True, # Synchronize color and depth streams
+                    'enable_sync': False, # Disable sync for better performance
                     'align_depth.enable': True, # Align depth to color by default
+                    'depth_module.profile': '640x480x15',
+                    'filters': '', # Disable any post-processing filters
+                    'depth_fps': 15.0, # Match FPS with profile
+                    'color_fps': 15.0,
+                    'device_type': 'D456', # Explicitly set device type if known
+                    'depth_module.global_time_enabled': False, # Disable for performance
+                    'enable_auto_exposure': True, # Automatic exposure for better quality
                 }],
                 condition=IfCondition(enable_depth2)
             ),
@@ -241,9 +254,13 @@ def generate_launch_description():
                 plugin='moondawg::CameraComponent',
                 name='rs1_depth_compression',
                 parameters=[{
-                    'image_compression_quality': image_compression_quality, # Depth might need different quality
+                    'image_compression_quality': image_compression_quality, 
                     'max_image_width': max_image_width,
                     'camera_key': 'rs1_depth',
+                    'is_depth_camera': True,
+                    'skip_frames': 1,  # Process every other frame
+                    'downsample_before_processing': True,
+                    'use_optimized_encoding': True
                 }],
                 remappings=[
                     # Realsense depth is often 16UC1, ensure ImageCompressionNode handles it (e.g. normalize and colormap)
@@ -277,6 +294,10 @@ def generate_launch_description():
                     'image_compression_quality': image_compression_quality,
                     'max_image_width': max_image_width,
                     'camera_key': 'rs2_depth',
+                    'is_depth_camera': True,
+                    'skip_frames': 1,  # Process every other frame
+                    'downsample_before_processing': True,
+                    'use_optimized_encoding': True
                 }],
                 remappings=[
                     ('image_raw', '/realsense/camera2/depth/image_rect_raw'),

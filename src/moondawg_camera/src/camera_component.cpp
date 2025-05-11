@@ -40,6 +40,12 @@ void CameraComponent::declareParameters()
   this->declare_parameter("image_compression_quality", 20);
   this->declare_parameter("max_image_width", 640);
   this->declare_parameter("camera_key", "camera"); // Default key
+  
+  // New parameters for depth image optimization
+  this->declare_parameter("is_depth_camera", false);
+  this->declare_parameter("skip_frames", 0);  // Skip frames for depth cameras to reduce processing load
+  this->declare_parameter("downsample_before_processing", false);
+  this->declare_parameter("use_optimized_encoding", true);
 }
 
 void CameraComponent::setupCommunications()
@@ -48,6 +54,13 @@ void CameraComponent::setupCommunications()
   image_compression_quality_ = this->get_parameter("image_compression_quality").as_int();
   max_image_width_ = this->get_parameter("max_image_width").as_int();
   camera_key_ = this->get_parameter("camera_key").as_string();
+  
+  // Get optimization parameters
+  is_depth_camera_ = this->get_parameter("is_depth_camera").as_bool();
+  skip_frames_ = this->get_parameter("skip_frames").as_int();
+  downsample_before_processing_ = this->get_parameter("downsample_before_processing").as_bool();
+  use_optimized_encoding_ = this->get_parameter("use_optimized_encoding").as_bool();
+  frame_count_ = 0;
   
   auto camera_qos = rclcpp::QoS(rclcpp::KeepLast(1))
     .best_effort()
@@ -84,11 +97,82 @@ void CameraComponent::setupCommunications()
 
 void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr message)
 {
+  // Apply frame skipping if configured (useful for depth cameras)
+  if (skip_frames_ > 0) {
+    if (frame_count_++ % (skip_frames_ + 1) != 0) {
+      return; // Skip this frame
+    }
+  }
+
   try
   {
     std::string encoding = "bgr8";
-    if (message->encoding.find("mono") != std::string::npos || message->encoding.find("16UC1") != std::string::npos || message->encoding.find("depth") != std::string::npos) {
-        encoding = message->encoding; 
+    bool is_depth_image = false;
+
+    // Detect if this is a depth image
+    if (message->encoding.find("mono") != std::string::npos || 
+        message->encoding.find("16UC1") != std::string::npos || 
+        message->encoding.find("depth") != std::string::npos) {
+        encoding = message->encoding;
+        is_depth_image = true;
+    }
+
+    // For depth images, we can downsample early to reduce processing cost
+    if (is_depth_image && downsample_before_processing_ && max_image_width_ > 0 && 
+        message->width > static_cast<uint32_t>(max_image_width_)) {
+        
+        // Calculate downsampling ratio
+        double scale = static_cast<double>(max_image_width_) / message->width;
+        int new_width = max_image_width_;
+        int new_height = static_cast<int>(message->height * scale);
+        
+        // Create downsampled image
+        cv_bridge::CvImagePtr cv_image_ptr = cv_bridge::toCvCopy(message, encoding);
+        cv::Mat resized;
+        cv::resize(cv_image_ptr->image, resized, cv::Size(new_width, new_height), 0, 0, cv::INTER_NEAREST);
+        
+        // Update the image message
+        cv_image_ptr->image = resized;
+        auto new_msg = cv_image_ptr->toImageMsg();
+        cv_image_ptr = cv_bridge::toCvShare(new_msg, encoding);
+        if (!cv_image_ptr) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to convert downsampled image");
+            return;
+        }
+        
+        cv::Mat processed_cv_image;
+        if (is_depth_image) {
+            // Optimize depth visualization by using a faster colormap
+            cv::Mat normalized_image;
+            cv::Mat single_channel_image = cv_image_ptr->image;
+            
+            // Ensure single channel for depth processing
+            if (single_channel_image.channels() != 1) {
+                 if (single_channel_image.channels() > 1) {
+                    std::vector<cv::Mat> channels;
+                    cv::split(single_channel_image, channels);
+                    single_channel_image = channels[0];
+                 } else {
+                    RCLCPP_ERROR(this->get_logger(), "Cannot convert multi-channel depth image to single channel for normalization.");
+                    return;
+                 }
+            }
+            
+            // Use faster normalize with fixed range for depth images
+            double min_val = 0;
+            double max_val = 10000; // Use a fixed range that works for your sensor
+            
+            // Convert to 8-bit for colormap with a fixed range (faster than NORM_MINMAX which has to scan the image)
+            single_channel_image.convertTo(normalized_image, CV_8U, 255.0 / max_val);
+            
+            // Apply colormap - COLORMAP_JET is commonly used for depth, but HOT or RAINBOW might be faster
+            cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_HOT);
+        } else {
+            processed_cv_image = cv_image_ptr->image;
+        }
+        
+        processAndPublishImage(processed_cv_image, image_subscription_->get_topic_name());
+        return;
     }
 
     auto cv_image_ptr = cv_bridge::toCvShare(message, encoding);
@@ -99,11 +183,12 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
     }
     
     cv::Mat processed_cv_image;
-    if (message->encoding == "16UC1" || message->encoding.find("depth") != std::string::npos) {
+    if (is_depth_image) {
+        // Optimize depth image processing
         cv::Mat normalized_image;
         cv::Mat single_channel_image = cv_image_ptr->image;
+        
         if (single_channel_image.channels() != 1) {
-             RCLCPP_WARN(this->get_logger(), "Depth image has %d channels, expected 1. Trying to convert.", single_channel_image.channels());
              if (single_channel_image.channels() > 1) {
                 std::vector<cv::Mat> channels;
                 cv::split(single_channel_image, channels);
@@ -114,8 +199,16 @@ void CameraComponent::imageCallback(const sensor_msgs::msg::Image::SharedPtr mes
                 return;
              }
         }
-        cv::normalize(single_channel_image, normalized_image, 0, 255, cv::NORM_MINMAX, CV_8U);
-        cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_JET);
+        
+        // Use fixed range normalization instead of NORM_MINMAX for optimization
+        double min_val = 0;
+        double max_val = 10000; // Adjust this based on your depth camera range
+        
+        // Convert directly to 8-bit using a fixed range
+        single_channel_image.convertTo(normalized_image, CV_8U, 255.0 / max_val);
+        
+        // Use a faster colormap for depth visualization
+        cv::applyColorMap(normalized_image, processed_cv_image, cv::COLORMAP_HOT);
     } else {
         processed_cv_image = cv_image_ptr->image;
     }
@@ -142,10 +235,12 @@ bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std
     last_processed_time_ = current_time;
     double processing_start_time = current_time;
 
-    cv::Mat image_to_process = cv_image.clone();
-
-    if (max_image_width_ > 0 && image_to_process.cols > max_image_width_)
+    cv::Mat image_to_process = cv_image;
+    
+    // Only clone if we need to resize
+    if (max_image_width_ > 0 && image_to_process.cols > max_image_width_ && !downsample_before_processing_)
     {
+      image_to_process = cv_image.clone();
       double aspect_ratio = static_cast<double>(image_to_process.rows) / static_cast<double>(image_to_process.cols);
       int new_width = max_image_width_;
       int new_height = static_cast<int>(new_width * aspect_ratio);
@@ -155,48 +250,102 @@ bool CameraComponent::processAndPublishImage(const cv::Mat & cv_image, const std
     }
 
     std::vector<uchar> buffer;
-    std::vector<int> encode_params = {cv::IMWRITE_JPEG_QUALITY, image_compression_quality_};
+    
+    // Depth images might benefit from different compression parameters
+    std::vector<int> encode_params;
+    if (is_depth_camera_) {
+      // For depth images, use higher quality to preserve detail
+      encode_params = {cv::IMWRITE_JPEG_QUALITY, std::min(image_compression_quality_ + 10, 100)};
+    } else {
+      encode_params = {cv::IMWRITE_JPEG_QUALITY, image_compression_quality_};
+    }
+    
     cv::imencode(".jpg", image_to_process, buffer, encode_params);
     std::string mime_type = "image/jpeg";
 
+    // Use a more efficient base64 encoding implementation
     std::string base64_data;
-    base64_data.resize(4 * ((buffer.size() + 2) / 3)); 
+    
+    if (use_optimized_encoding_) {
+      // More optimized base64 encoding
+      static const char base64_chars[] = 
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      
+      size_t buffer_size = buffer.size();
+      base64_data.reserve(((buffer_size + 2) / 3) * 4); // Pre-allocate memory
+      
+      size_t i = 0;
+      for (; i + 2 < buffer_size; i += 3) {
+          uint32_t a = buffer[i];
+          uint32_t b = buffer[i+1];
+          uint32_t c = buffer[i+2];
+          uint32_t triple = (a << 16) | (b << 8) | c;
+          
+          base64_data.push_back(base64_chars[(triple >> 18) & 0x3F]);
+          base64_data.push_back(base64_chars[(triple >> 12) & 0x3F]);
+          base64_data.push_back(base64_chars[(triple >> 6) & 0x3F]);
+          base64_data.push_back(base64_chars[triple & 0x3F]);
+      }
+      
+      if (i + 1 == buffer_size) {
+          uint32_t a = buffer[i];
+          uint32_t triple = (a << 16);
+          
+          base64_data.push_back(base64_chars[(triple >> 18) & 0x3F]);
+          base64_data.push_back(base64_chars[(triple >> 12) & 0x3F]);
+          base64_data.push_back('=');
+          base64_data.push_back('=');
+      } 
+      else if (i + 2 == buffer_size) {
+          uint32_t a = buffer[i];
+          uint32_t b = buffer[i+1];
+          uint32_t triple = (a << 16) | (b << 8);
+          
+          base64_data.push_back(base64_chars[(triple >> 18) & 0x3F]);
+          base64_data.push_back(base64_chars[(triple >> 12) & 0x3F]);
+          base64_data.push_back(base64_chars[(triple >> 6) & 0x3F]);
+          base64_data.push_back('=');
+      }
+    } 
+    else {
+      // Original base64 encoding implementation
+      base64_data.resize(4 * ((buffer.size() + 2) / 3)); 
+      
+      static const char* base64_chars =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+          "abcdefghijklmnopqrstuvwxyz"
+          "0123456789+/";
 
-    static const char* base64_chars =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "0123456789+/";
+      size_t i = 0, j = 0;
+      unsigned char char_array_3[3];
+      unsigned char char_array_4[4];
 
-    size_t i = 0, j = 0;
-    unsigned char char_array_3[3];
-    unsigned char char_array_4[4];
+      for (i = 0; (i + 2) < buffer.size(); i += 3) {
+          char_array_3[0] = buffer[i];
+          char_array_3[1] = buffer[i+1];
+          char_array_3[2] = buffer[i+2];
 
-    for (i = 0; (i + 2) < buffer.size(); i += 3) {
-        char_array_3[0] = buffer[i];
-        char_array_3[1] = buffer[i+1];
-        char_array_3[2] = buffer[i+2];
+          base64_data[j++] = base64_chars[(char_array_3[0] & 0xfc) >> 2];
+          base64_data[j++] = base64_chars[((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4)];
+          base64_data[j++] = base64_chars[((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6)];
+          base64_data[j++] = base64_chars[char_array_3[2] & 0x3f];
+      }
 
-        base64_data[j++] = base64_chars[(char_array_3[0] & 0xfc) >> 2];
-        base64_data[j++] = base64_chars[((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4)];
-        base64_data[j++] = base64_chars[((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6)];
-        base64_data[j++] = base64_chars[char_array_3[2] & 0x3f];
+      if (i < buffer.size()) {
+          char_array_3[0] = buffer[i];
+          char_array_3[1] = (i + 1 < buffer.size()) ? buffer[i+1] : 0;
+
+          base64_data[j++] = base64_chars[(char_array_3[0] & 0xfc) >> 2];
+          base64_data[j++] = base64_chars[((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4)];
+          if (i + 1 < buffer.size()) {
+              base64_data[j++] = base64_chars[((char_array_3[1] & 0x0f) << 2)];
+          } else {
+              base64_data[j++] = '=';
+          }
+          base64_data[j++] = '=';
+      }
+      base64_data.resize(j);
     }
-
-    if (i < buffer.size()) {
-        char_array_3[0] = buffer[i];
-        char_array_3[1] = (i + 1 < buffer.size()) ? buffer[i+1] : 0;
-
-        base64_data[j++] = base64_chars[(char_array_3[0] & 0xfc) >> 2];
-        base64_data[j++] = base64_chars[((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4)];
-        if (i + 1 < buffer.size()) {
-            base64_data[j++] = base64_chars[((char_array_3[1] & 0x0f) << 2)];
-        } else {
-            base64_data[j++] = '=';
-        }
-        base64_data[j++] = '=';
-    }
-    base64_data.resize(j);
-
 
     auto msg = std_msgs::msg::String();
     msg.data = mime_type + "," + base64_data;
