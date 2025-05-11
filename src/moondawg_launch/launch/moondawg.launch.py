@@ -302,7 +302,6 @@ def generate_launch_description():
     ld = LaunchDescription(args + regular_nodes)
     ld.add_action(realsense_node_1)
     ld.add_action(realsense_node_2)
-    ld.add_action(usb_camera_node)
     ld.add_action(compression_container) # Add the container with compression nodes
     # ld.add_action(camera_node) # Add the (now simpler) camera_node if still needed
     return ld
