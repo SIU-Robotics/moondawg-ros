@@ -2,7 +2,7 @@ import os
 from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'moondawg'
+package_name = 'moondawg_control'
 
 setup(
     name=package_name,
@@ -14,8 +14,6 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
-        ('share/ament_index/resource_index/rclpy_components', 
-            ['resource/moondawg']),
     ],
     install_requires=[
         'setuptools',
@@ -30,12 +28,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'controller_parser = moondawg.controller_parser:main',
-            'i2c_node = moondawg.i2c_node:main',
-
-        ],
-        'rclpy_components': [
-            'moondawg::CameraNode = moondawg.camera_node:CameraNode',
+            'controller_parser = moondawg_control.controller_parser:main',
+            'i2c_node = moondawg_control.i2c_node:main',
         ],
     },
     classifiers=[

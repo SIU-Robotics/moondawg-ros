@@ -131,7 +131,7 @@ def generate_launch_description():
             ]
         ),
         Node(
-            package='moondawg',
+            package='moondawg_control',
             executable='controller_parser',
             name='controller_parser',
             output='screen',
@@ -145,7 +145,7 @@ def generate_launch_description():
             ]
         ),
         Node(
-            package='moondawg',
+            package='moondawg_control',
             executable='i2c_node',
             name='i2c_node',
             output='screen',
@@ -207,7 +207,7 @@ def generate_launch_description():
             ),
             # Camera node for processing the RealSense data
             ComposableNode(
-                package='moondawg',
+                package='moondawg_camera',
                 plugin='moondawg::CameraNode',
                 name='camera_node',
                 parameters=[
