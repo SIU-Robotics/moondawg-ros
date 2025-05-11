@@ -177,11 +177,15 @@ def generate_launch_description():
                     'serial_no': realsense1_serial,
                     'enable_color': True,
                     'enable_depth': True,
-                    'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
-                    'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
+                    'enable_infra1': False,
+                    'enable_infra2': False,
+                    'rgb_camera.profile': '640x480x' + str(image_frame_rate),
+                    'depth_module.depth_profile': '640x480x' + str(image_frame_rate),
                     'clip_distance': 3.0, # Example: Clip depth at 3 meters
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False, # Disable pointcloud if not used by compression
+                    'enable_sync': True, # Synchronize color and depth streams
+                    'align_depth.enable': True, # Align depth to color by default
                 }],
                 condition=IfCondition(enable_depth1)
             ),
@@ -195,11 +199,15 @@ def generate_launch_description():
                     'serial_no': realsense2_serial,
                     'enable_color': True,
                     'enable_depth': True,
-                    'color_width': 640, 'color_height': 480, 'color_fps': image_frame_rate,
-                    'depth_width': 640, 'depth_height': 480, 'depth_fps': image_frame_rate,
+                    'enable_infra1': False,
+                    'enable_infra2': False,
+                    'rgb_camera.profile': '640x480,' + str(image_frame_rate),
+                    'depth_module.depth_profile': '640x480x' + str(image_frame_rate),
                     'clip_distance': 6.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
+                    'enable_sync': True, # Synchronize color and depth streams
+                    'align_depth.enable': True, # Align depth to color by default
                 }],
                 condition=IfCondition(enable_depth2)
             ),
