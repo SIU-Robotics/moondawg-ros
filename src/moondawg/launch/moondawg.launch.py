@@ -29,8 +29,7 @@ def generate_launch_description():
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
     image_frame_rate = LaunchConfiguration('image_frame_rate', default='15')
     adaptive_quality = LaunchConfiguration('adaptive_quality', default='true')
-    use_webp = LaunchConfiguration('use_webp', default='false')
-    image_resize_factor = LaunchConfiguration('image_resize_factor', default='0.5')
+    max_image_width = LaunchConfiguration('max_image_width', default='640')
     auto_dig_duration_seconds = LaunchConfiguration('auto_dig_duration_seconds', default='30')
     belt_speed_index = LaunchConfiguration('belt_speed_index', default='0')
     
@@ -112,14 +111,9 @@ def generate_launch_description():
             description='Enable adaptive quality for image compression'
         ),
         DeclareLaunchArgument(
-            'use_webp',
-            default_value='false',
-            description='Use WebP format for image compression'
-        ),
-        DeclareLaunchArgument(
-            'image_resize_factor',
-            default_value='0.5',
-            description='Resize factor for images (0.5 = half size)'
+            'max_image_width',
+            default_value='640',
+            description='Maximum width for images (aspect ratio maintained)'
         ),
         DeclareLaunchArgument(
             'auto_dig_duration_seconds',
@@ -219,8 +213,7 @@ def generate_launch_description():
                 {'image_compression_quality': image_compression_quality},
                 {'image_frame_rate': image_frame_rate},
                 {'adaptive_quality': adaptive_quality},
-                {'use_webp': use_webp},
-                {'image_resize_factor': image_resize_factor},
+                {'max_image_width': max_image_width},
                 {'auto_dig_duration_seconds': auto_dig_duration_seconds},
                 {'belt_speed_index': belt_speed_index},
                 {'belt_speeds': [180, 125, 120]},  # You can also make this configurable if needed

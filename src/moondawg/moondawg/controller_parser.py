@@ -153,8 +153,7 @@ class ControllerParser(Node):
         self.declare_parameter('image_compression_quality', 20)
         self.declare_parameter('image_frame_rate', 15)  # Parameter for frame rate control
         self.declare_parameter('adaptive_quality', True)  # Enable/disable adaptive quality
-        self.declare_parameter('use_webp', True)  # Use WebP instead of JPEG when True
-        self.declare_parameter('image_resize_factor', 0.5)  # Resize factor for images (0.5 = half size)
+        self.declare_parameter('max_image_width', 640)  # Maximum width for images, aspect ratio maintained
         self.declare_parameter('auto_dig_duration_seconds', 30)
         self.declare_parameter('belt_speeds', [180, 125, 120])
 
@@ -425,10 +424,12 @@ class ControllerParser(Node):
             setattr(self, last_time_attr, current_time)
             
             # Resize the image to reduce CPU usage
-            resize_factor = self.get_parameter('image_resize_factor').get_parameter_value().double_value
-            if resize_factor != 1.0:
-                new_width = int(cv_image.shape[1] * resize_factor)
-                new_height = int(cv_image.shape[0] * resize_factor)
+            max_width = self.get_parameter('max_image_width').get_parameter_value().integer_value
+            if max_width > 0 and cv_image.shape[1] > max_width:
+                # Calculate new dimensions maintaining aspect ratio
+                aspect_ratio = cv_image.shape[0] / cv_image.shape[1]
+                new_width = max_width
+                new_height = int(new_width * aspect_ratio)
                 # Use INTER_NEAREST for depth images or INTER_AREA for color images (best for downsampling)
                 interpolation = cv2.INTER_NEAREST if is_depth else cv2.INTER_AREA
                 cv_image = cv2.resize(cv_image, (new_width, new_height), interpolation=interpolation)
@@ -463,18 +464,10 @@ class ControllerParser(Node):
                     elif variance > 200:  # High complexity/detail image
                         quality = min(40, quality + 5)
             
-            # Use WebP if enabled (better compression than JPEG)
-            use_webp = self.get_parameter('use_webp').get_parameter_value().bool_value
-            if use_webp:
-                # WebP is more CPU-intensive but offers better compression
-                _, encoded_img = cv2.imencode('.webp', cv_image, 
-                                            [cv2.IMWRITE_WEBP_QUALITY, quality])
-                mime_type = "image/webp"
-            else:
-                # Default to JPEG which is faster
-                _, encoded_img = cv2.imencode('.jpg', cv_image, 
-                                            [cv2.IMWRITE_JPEG_QUALITY, quality])
-                mime_type = "image/jpeg"
+            # Always use JPEG encoding
+            _, encoded_img = cv2.imencode('.jpg', cv_image, 
+                                        [cv2.IMWRITE_JPEG_QUALITY, quality])
+            mime_type = "image/jpeg"
             
             # Convert to base64 and publish
             base64_data = base64.b64encode(encoded_img.tobytes()).decode('utf-8')
