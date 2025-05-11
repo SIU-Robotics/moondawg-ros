@@ -246,7 +246,7 @@ def generate_launch_description():
                     'skip_frames': 1,  # Process every other frame
                     'downsample_before_processing': True,
                     'use_optimized_encoding': True,
-                    'depth_max_value_mm': 3.0
+                    'depth_max_value_mm': 3000
                 }],
                 remappings=[
                     # Realsense depth is often 16UC1, ensure ImageCompressionNode handles it (e.g. normalize and colormap)
@@ -282,7 +282,7 @@ def generate_launch_description():
                     'skip_frames': 1,  # Process every other frame
                     'downsample_before_processing': True,
                     'use_optimized_encoding': True,
-                    'depth_max_value_mm': 6.0
+                    'depth_max_value_mm': 6000
                 }],
                 remappings=[
                     ('image_raw', '/realsense/camera2/depth/image_rect_raw'),
