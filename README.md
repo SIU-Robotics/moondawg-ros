@@ -69,6 +69,11 @@ ros2 launch moondawg moondawg.launch.py enable_realsense:=false
 
 # Specify RealSense camera serial numbers (if you have multiple)
 ros2 launch moondawg moondawg.launch.py realsense1_serial:=123456789012 realsense2_serial:=987654321098
+
+# QR code testing:
+- Terminal 1: ros2 run v4l2_camera_node --ros-args -p video_device:=/dev/video0
+- Terminal 2: ros2 run moondawg_qr_reader qr_code_reader
+
 ```
 
 ### Web Interface
