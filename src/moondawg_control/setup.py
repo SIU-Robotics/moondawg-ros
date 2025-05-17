@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'controller_parser = moondawg_control.controller_parser:main',
             'i2c_node = moondawg_control.i2c_node:main',
+            'serial_node = moondawg_control.serial_node:main'
         ],
     },
     classifiers=[

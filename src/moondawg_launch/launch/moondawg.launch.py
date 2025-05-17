@@ -11,9 +11,9 @@ def generate_launch_description():
     # Camera enable flags - individual control for each camera
     enable_usb_camera = LaunchConfiguration('enable_usb', default='true')
     enable_depth1 = LaunchConfiguration('enable_depth1', default='true')
-    enable_depth2 = LaunchConfiguration('enable_depth2', default='true')
+    enable_depth2 = LaunchConfiguration('enable_depth2', default='false')
     
-    camera_device = LaunchConfiguration('camera_device', default='/dev/video0')
+    camera_device = LaunchConfiguration('camera_device', default='6')
     realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
     realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
 
@@ -40,12 +40,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'enable_depth2',
-            default_value='true',
+            default_value='false',
             description='Enable or disable the second RealSense depth camera'
         ),
         DeclareLaunchArgument(
             'camera_device',
-            default_value='/dev/video0',
+            default_value='6',
             description='Camera device path'
         ),
         DeclareLaunchArgument(
@@ -115,7 +115,7 @@ def generate_launch_description():
             output='screen',
             condition=IfCondition(enable_usb_camera),
             parameters=[
-                {'device': camera_device},
+                {'device_id': camera_device},
                 {'fps': 15.0}
             ]
         ),
@@ -133,16 +133,22 @@ def generate_launch_description():
         ),
         Node(
             package='moondawg_control',
-            executable='i2c_node',
-            name='i2c_node',
-            output='screen',
-            parameters=[
-                {'bus_id': i2c_bus},
-                {'heartbeat_interval': 1.0},
-                {'command_timeout': 5.0},
-                {'debug': debug_mode}
-            ]
+            executable='serial_node',
+            name='serial_node',
+            output='screen'
         )
+        # Node(
+        #     package='moondawg_control',
+        #     executable='i2c_node',
+        #     name='i2c_node',
+        #     output='screen',
+        #     parameters=[
+        #         {'bus_id': i2c_bus},
+        #         {'heartbeat_interval': 1.0},
+        #         {'command_timeout': 5.0},
+        #         {'debug': debug_mode}
+        #     ]
+        # ),
     ]
 
     shared_container = ComposableNodeContainer(
@@ -203,21 +209,6 @@ def generate_launch_description():
                     'enable_auto_exposure': True,
                 }],
                 condition=IfCondition(enable_depth2)
-            ),
-            # Compression for USB Camera
-            ComposableNode(
-                package='moondawg_camera',
-                plugin='moondawg::CameraComponent',
-                name='usb_camera_compression',
-                parameters=[{
-                    'image_compression_quality': image_compression_quality,
-                    'camera_key': 'usb_main_camera',
-                }],
-                remappings=[
-                    ('image_raw', '/usb_camera/image_raw'), # Subscription
-                    ('image_compressed', '/camera_node/usb_camera_image') # Publication for web UI with unique topic name
-                ],
-                condition=IfCondition(enable_usb_camera)
             ),
             # Compression for RealSense 1 Color
             ComposableNode(
@@ -289,6 +280,21 @@ def generate_launch_description():
                     ('image_compressed', '/camera_node/rs2_depth_image')
                 ],
                 condition=IfCondition(enable_depth2)
+            ),
+            # Compression for USB Camera
+            ComposableNode(
+                package='moondawg_camera',
+                plugin='moondawg::CameraComponent',
+                name='usb_camera_compression',
+                parameters=[{
+                    'image_compression_quality': image_compression_quality,
+                    'camera_key': 'usb_main_camera',
+                }],
+                remappings=[
+                    ('image_raw', '/image'), # Subscription
+                    ('image_compressed', '/camera_node/usb_camera_image') # Publication for web UI with unique topic name
+                ],
+                condition=IfCondition(enable_usb_camera)
             ),
         ],
         output='screen',
