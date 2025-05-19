@@ -60,6 +60,22 @@ class ExcavationMotor:
     LEFT_ACTUATOR = 3  # Left Actuator
     RIGHT_ACTUATOR = 4 # Right Actuator
     VIBE_MOTOR = 5     # Vibe motor
+    CAMERA_YAW = 14    # Camera Yaw Servo
+    CAMERA_PITCH = 15  # Camera Pitch Servo
+
+# Camera position presets
+class CameraPreset:
+    FORWARD = 0
+    DOWN = 1
+    UP = 2
+    COUNT = 3  # Total number of presets
+
+# Camera preset configurations (yaw, pitch)
+CAMERA_PRESETS = [
+    (90, 90),    # FORWARD: Center position
+    (90, 150),   # DOWN: Looking down
+    (90, 30)     # UP: Looking up
+]
 
 def clamp(value: float, low: float, high: float) -> float:
     """Constrain a value between a minimum and maximum value."""
@@ -122,6 +138,9 @@ class ControllerParser(Node):
         
         # Track last commands sent to each address
         self.i2c_command_history = {}
+        
+        # Track current camera preset
+        self.current_camera_preset = CameraPreset.FORWARD
         
         # Track steering positions for condensed display
         self.current_steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}
@@ -489,6 +508,12 @@ class ControllerParser(Node):
                 self._set_vibrator(MOTOR_FULL_FORWARD)
             else:
                 self._set_vibrator(MOTOR_STOPPED)
+                
+        # Y button => cycle camera presets
+        if buttons["button_y"] != self.button_y:
+            self.button_y = buttons["button_y"]
+            if self.button_y:
+                self._cycle_camera_preset()
 
     # ------------------- Helper methods -------------------
 
@@ -712,6 +737,8 @@ class ControllerParser(Node):
                 ExcavationMotor.LEFT_ACTUATOR: "Left Actuator",
                 ExcavationMotor.RIGHT_ACTUATOR: "Right Actuator",
                 ExcavationMotor.VIBE_MOTOR: "Vibration Motor",
+                ExcavationMotor.CAMERA_YAW: "Camera Yaw",
+                ExcavationMotor.CAMERA_PITCH: "Camera Pitch",
             }
             return motor_names.get(motor_id, f"Unknown Excavation Motor ({motor_id})")
         else:
@@ -847,6 +874,8 @@ class ControllerParser(Node):
         11: Left Actuator
         12: Right Actuator
         13: Vibe motor
+        14: Camera Yaw
+        15: Camera Pitch
         
         Args:
             address: I2C address (used to determine system)
@@ -867,12 +896,43 @@ class ControllerParser(Node):
                 ExcavationMotor.AUGER: 10,         # Auger -> 10
                 ExcavationMotor.LEFT_ACTUATOR: 11, # Left Actuator -> 11
                 ExcavationMotor.RIGHT_ACTUATOR: 12, # Right Actuator -> 12
-                ExcavationMotor.VIBE_MOTOR: 13     # Vibe Motor -> 13
+                ExcavationMotor.VIBE_MOTOR: 13,     # Vibe Motor -> 13
+                ExcavationMotor.CAMERA_YAW: 14,     # Camera Yaw -> 14
+                ExcavationMotor.CAMERA_PITCH: 15    # Camera Pitch -> 15
             }
             return excavation_to_esp32.get(motor_id, motor_id)
             
         # Default: pass through the motor_id unchanged
         return motor_id
+
+    def _set_camera_preset(self, preset: int) -> None:
+        """
+        Set the camera position to a preset configuration.
+        
+        Args:
+            preset: The preset index (see CameraPreset class)
+        """
+        # Ensure the preset is within valid range
+        preset = preset % CameraPreset.COUNT
+        self.current_camera_preset = preset
+        
+        # Get the preset values
+        yaw, pitch = CAMERA_PRESETS[preset]
+        
+        # Set the camera servos
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_YAW, yaw])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
+        
+        # Log the change
+        preset_names = ["FORWARD", "DOWN", "UP"]
+        self.get_logger().info(f"Camera preset set to {preset_names[preset]}")
+        
+    def _cycle_camera_preset(self) -> None:
+        """
+        Cycle to the next camera preset.
+        """
+        next_preset = (self.current_camera_preset + 1) % CameraPreset.COUNT
+        self._set_camera_preset(next_preset)
 
 def main(args=None):
     """Main entry point for the node."""
