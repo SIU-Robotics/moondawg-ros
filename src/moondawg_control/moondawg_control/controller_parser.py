@@ -39,13 +39,43 @@ SERVO_INDEXES = {
 }
 # I2C addresses - consolidated into a single place for easy maintenance
 class I2CAddress:
-    FRONT_LEFT = 0x10
-    FRONT_RIGHT = 0x11
-    REAR_LEFT = 0x12
-    REAR_RIGHT = 0x13
-    STEERING_SERVO = 0x14
-    EXCAVATION = 0x20
-    DEPOSITION = 0x21
+    DRIVE_SYSTEM = 0x10
+    EXCAVATION_SYSTEM = 0x11
+
+# Motor indexes for DRIVE_SYSTEM
+class DriveMotor:
+    DRIVE_FL = 1  # Front Left
+    DRIVE_FR = 2  # Front Right
+    DRIVE_RL = 3  # Rear Left
+    DRIVE_RR = 4  # Rear Right
+    TURN_FL = 5   # Front Left Servo
+    TURN_FR = 6   # Front Right Servo
+    TURN_RL = 7   # Rear Left Servo
+    TURN_RR = 8   # Rear Right Servo
+
+# Motor indexes for EXCAVATION_SYSTEM
+class ExcavationMotor:
+    BELT = 1      # Belt
+    AUGER = 2     # Auger
+    LEFT_ACTUATOR = 3  # Left Actuator
+    RIGHT_ACTUATOR = 4 # Right Actuator
+    VIBE_MOTOR = 5     # Vibe motor
+    CAMERA_YAW = 14    # Camera Yaw Servo
+    CAMERA_PITCH = 15  # Camera Pitch Servo
+
+# Camera position presets
+class CameraPreset:
+    FORWARD = 0
+    DOWN = 1
+    UP = 2
+    COUNT = 3  # Total number of presets
+
+# Camera preset configurations (yaw, pitch)
+CAMERA_PRESETS = [
+    (90, 90),    # FORWARD: Center position
+    (90, 150),   # DOWN: Looking down
+    (90, 30)     # UP: Looking up
+]
 
 def clamp(value: float, low: float, high: float) -> float:
     """Constrain a value between a minimum and maximum value."""
@@ -109,16 +139,23 @@ class ControllerParser(Node):
         # Track last commands sent to each address
         self.i2c_command_history = {}
         
+        # Track current camera preset
+        self.current_camera_preset = CameraPreset.FORWARD
+        
         # Track steering positions for condensed display
         self.current_steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}
         self.target_steering_positions =  dict(self.current_steering_positions) # Default center positions
         
         # Track current and target wheel speeds
         self.current_wheel_speeds = {
-            I2CAddress.FRONT_LEFT: MOTOR_STOPPED,
-            I2CAddress.FRONT_RIGHT: MOTOR_STOPPED,
-            I2CAddress.REAR_LEFT: MOTOR_STOPPED,
-            I2CAddress.REAR_RIGHT: MOTOR_STOPPED
+            DriveMotor.DRIVE_FL: MOTOR_STOPPED,
+            DriveMotor.DRIVE_FR: MOTOR_STOPPED,
+            DriveMotor.DRIVE_RL: MOTOR_STOPPED,
+            DriveMotor.DRIVE_RR: MOTOR_STOPPED,
+            DriveMotor.TURN_FL: 90,
+            DriveMotor.TURN_FR: 90,
+            DriveMotor.TURN_RL: 90,
+            DriveMotor.TURN_RR: 90
         }
         self.target_wheel_speeds = dict(self.current_wheel_speeds)
         
@@ -144,6 +181,13 @@ class ControllerParser(Node):
         self.i2c_publisher = self.create_publisher(
             String, 
             '/i2c_node/command', 
+            10
+        )
+        
+        # Serial publisher for sending commands to the serial node
+        self.serial_publisher = self.create_publisher(
+            String,
+            '/serial_node/command',
             10
         )
         
@@ -347,6 +391,7 @@ class ControllerParser(Node):
             fr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rl_speed = clamp(MOTOR_STOPPED - speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
             rr_speed = clamp(MOTOR_STOPPED + speed_offset, MOTOR_FULL_REVERSE, MOTOR_FULL_FORWARD)
+            self._set_wheel_speeds(fl_speed, fr_speed, rl_speed, rr_speed)
         # If r_x_f is 0 (or within deadzone), axis_callback handles stopping motors.
 
     def _handle_trigger_drive(self, trigger_y_norm: float, stick_x_norm: float, stick_y_norm: float, stick_active_for_steering: bool) -> None:
@@ -463,6 +508,12 @@ class ControllerParser(Node):
                 self._set_vibrator(MOTOR_FULL_FORWARD)
             else:
                 self._set_vibrator(MOTOR_STOPPED)
+                
+        # Y button => cycle camera presets
+        if buttons["button_y"] != self.button_y:
+            self.button_y = buttons["button_y"]
+            if self.button_y:
+                self._cycle_camera_preset()
 
     # ------------------- Helper methods -------------------
 
@@ -490,7 +541,8 @@ class ControllerParser(Node):
         Args:
             position: The position to set (UP or DOWN)
         """
-        self.send_i2c(I2CAddress.EXCAVATION, [BELT_POSITION, position])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.LEFT_ACTUATOR, position])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.RIGHT_ACTUATOR, position])
 
     def _set_belt_speed(self, speed: int) -> None:
         """
@@ -499,7 +551,7 @@ class ControllerParser(Node):
         Args:
             speed: The speed to set (0-180, 90 is stopped)
         """
-        self.send_i2c(I2CAddress.EXCAVATION, [BELT_SPEED, speed])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.BELT, speed])
 
     def _set_auger_deposition(self, direction: int) -> None:
         """
@@ -508,7 +560,7 @@ class ControllerParser(Node):
         Args:
             direction: The direction to set (FORWARD, MOTOR_STOPPED, etc.)
         """
-        self.send_i2c(I2CAddress.DEPOSITION, [AUGER, direction])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.AUGER, direction])
 
     def _set_vibrator(self, state: int) -> None:
         """
@@ -517,7 +569,7 @@ class ControllerParser(Node):
         Args:
             state: The state to set (ON, OFF)
         """
-        self.send_i2c(I2CAddress.DEPOSITION, [VIBRATOR, state])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.VIBE_MOTOR, state])
 
     def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
         return {
@@ -547,8 +599,19 @@ class ControllerParser(Node):
             angle: Angle to set (0-180)
             servo_index: servo_index number (1-4)
         """
+        # Map the servo_index (1-4) to the appropriate DriveMotor turn motor
+        motor_mapping = {
+            1: DriveMotor.TURN_FL,  # Front Left
+            2: DriveMotor.TURN_FR,  # Front Right
+            3: DriveMotor.TURN_RL,  # Rear Left
+            4: DriveMotor.TURN_RR   # Rear Right
+        }
+        
         # Just store the target angle - the servo timer will gradually move to this position
         self.target_steering_positions[servo_index] = angle
+        
+        # Also store it in the wheel speeds dictionary for the new motor addressing scheme
+        self.target_wheel_speeds[motor_mapping[servo_index]] = angle
 
     def _set_wheel_speeds(self, 
                          front_left: int, 
@@ -565,10 +628,10 @@ class ControllerParser(Node):
             rear_right: Speed for rear right wheel (0-180)
         """
         # Store the target speeds - the timer will gradually adjust to these values
-        self.target_wheel_speeds[I2CAddress.FRONT_LEFT] = front_left
-        self.target_wheel_speeds[I2CAddress.FRONT_RIGHT] = front_right  
-        self.target_wheel_speeds[I2CAddress.REAR_LEFT] = rear_left
-        self.target_wheel_speeds[I2CAddress.REAR_RIGHT] = rear_right
+        self.target_wheel_speeds[DriveMotor.DRIVE_FL] = front_left
+        self.target_wheel_speeds[DriveMotor.DRIVE_FR] = front_right
+        self.target_wheel_speeds[DriveMotor.DRIVE_RL] = rear_left
+        self.target_wheel_speeds[DriveMotor.DRIVE_RR] = rear_right
 
     def _center_wheels(self) -> None:
         """Set all wheels to center position (straight)."""
@@ -616,31 +679,70 @@ class ControllerParser(Node):
 
     def send_i2c(self, address: int, data: Union[int, Tuple, List]) -> None:
         """
-        Send an I2C command.
+        Send command to the serial node to control the ESP32.
         
         Args:
-            address: I2C address
+            address: I2C address or command identifier (now used only for history tracking)
             data: Data to send (can be an int, tuple, or list)
         """
-        # Format the message based on data type
+        # For ESP32 serial communication, we only need motor_id and value
+        # The ESP32 expects format <motor>,<value> with a newline
         if isinstance(data, (tuple, list)) and len(data) == 2:
-            device, value = data
-            msg_str = f"{hex(address)}:{device},{value}"
-            # Store the command in history with a user-friendly description
-            self._update_i2c_history(address, f"{device},{value}")
-        elif isinstance(data, (tuple, list)):
-            # Format a list of values
-            msg_str = f"{hex(address)}:" + ",".join(str(d) for d in data)
-            # Store the command in history
-            self._update_i2c_history(address, ",".join(str(d) for d in data))
+            # Translate from our internal motor IDs to ESP32 motor IDs
+            motor_id, value = data
+            esp32_motor_id = self._translate_motor_id(address, motor_id)
+            
+            # Format message for ESP32: motor,value
+            serial_msg = f"{esp32_motor_id},{value}"
+            
+            # Keep the I2C history tracking for UI display
+            self._update_i2c_history(address, f"{motor_id},{value}")
         else:
-            # Handle integer or other simple values
-            msg_str = f"{hex(address)}:{data}"
-            # Store the command in history
+            # Handle unexpected format - just convert to string
+            self.get_logger().warn(f"Unexpected command format: {data}")
+            serial_msg = str(data)
             self._update_i2c_history(address, str(data))
             
-        # Publish the formatted message
-        self.i2c_publisher.publish(String(data=msg_str))
+        # Send all commands to serial
+        self.serial_publisher.publish(String(data=serial_msg))
+        self.get_logger().debug(f"Sent serial command: {serial_msg}")
+
+    def _get_motor_name(self, address: int, motor_id: int) -> str:
+        """
+        Get a human-readable name for a motor ID based on the system address.
+        
+        Args:
+            address: I2C address (system type)
+            motor_id: Motor ID within that system
+            
+        Returns:
+            String name of the motor
+        """
+        if address == I2CAddress.DRIVE_SYSTEM:
+            motor_names = {
+                DriveMotor.DRIVE_FL: "Front Left Drive",
+                DriveMotor.DRIVE_FR: "Front Right Drive",
+                DriveMotor.DRIVE_RL: "Rear Left Drive",
+                DriveMotor.DRIVE_RR: "Rear Right Drive",
+                DriveMotor.TURN_FL: "Front Left Turn",
+                DriveMotor.TURN_FR: "Front Right Turn",
+                DriveMotor.TURN_RL: "Rear Left Turn",
+                DriveMotor.TURN_RR: "Rear Right Turn",
+            }
+            return motor_names.get(motor_id, f"Unknown Drive Motor ({motor_id})")
+        elif address == I2CAddress.EXCAVATION_SYSTEM:
+            motor_names = {
+                ExcavationMotor.BELT: "Belt",
+                ExcavationMotor.AUGER: "Auger",
+                ExcavationMotor.LEFT_ACTUATOR: "Left Actuator",
+                ExcavationMotor.RIGHT_ACTUATOR: "Right Actuator",
+                ExcavationMotor.VIBE_MOTOR: "Vibration Motor",
+                ExcavationMotor.CAMERA_YAW: "Camera Yaw",
+                ExcavationMotor.CAMERA_PITCH: "Camera Pitch",
+            }
+            return motor_names.get(motor_id, f"Unknown Excavation Motor ({motor_id})")
+        else:
+            return f"Unknown Motor ({motor_id})"
 
     def _update_i2c_history(self, address: int, data_str: str) -> None:
         """
@@ -653,11 +755,20 @@ class ControllerParser(Node):
         # Get human-readable name for the address
         device_name = self._get_device_name(address)
         
+        # Parse data to get human-readable motor description if it's a list format
+        readable_command = data_str
+        parts = data_str.split(',')
+        if len(parts) >= 2 and parts[0].isdigit():
+            motor_id = int(parts[0])
+            value = parts[1]
+            motor_name = self._get_motor_name(address, motor_id)
+            readable_command = f"{motor_name}: {value}"
+        
         # Store the command in the history with timestamp
         self.i2c_command_history[address] = {
             'device_name': device_name,
             'address': hex(address),
-            'last_command': data_str,
+            'last_command': readable_command,
             'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
         }
         
@@ -675,13 +786,8 @@ class ControllerParser(Node):
             String name of the device
         """
         device_names = {
-            I2CAddress.FRONT_LEFT: "Front Left Motor",
-            I2CAddress.FRONT_RIGHT: "Front Right Motor",
-            I2CAddress.REAR_LEFT: "Rear Left Motor",
-            I2CAddress.REAR_RIGHT: "Rear Right Motor",
-            I2CAddress.STEERING_SERVO: "Steering Servo",
-            I2CAddress.EXCAVATION: "Excavation System",
-            I2CAddress.DEPOSITION: "Deposition System",
+            I2CAddress.DRIVE_SYSTEM: "Drive System",
+            I2CAddress.EXCAVATION_SYSTEM: "Excavation System",
         }
         
         return device_names.get(address, f"Unknown Device ({hex(address)})")
@@ -696,13 +802,7 @@ class ControllerParser(Node):
         # Create a copy of the history data to work with
         history_data = dict(self.i2c_command_history)
         
-        steering_data = ", ".join([f"{SERVO_INDEXES[ch]}: {pos}°" for ch, pos in self.current_steering_positions.items()])
-        history_data[I2CAddress.STEERING_SERVO] = {
-            'device_name': "Steering Servos",
-            'address': hex(I2CAddress.STEERING_SERVO),
-            'last_command': steering_data,
-            'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        }
+        # No longer need to add specific steering data as it's included in regular I2C commands
             
         # Convert the history to a JSON string
         history_json = json.dumps(history_data)
@@ -714,6 +814,14 @@ class ControllerParser(Node):
         """
         Update servo positions and wheel speeds gradually to their target positions.
         """
+        # Create mappings for servo indexes to motor numbers
+        servo_to_motor = {
+            1: DriveMotor.TURN_FL,  # Front Left
+            2: DriveMotor.TURN_FR,  # Front Right
+            3: DriveMotor.TURN_RL,  # Rear Left
+            4: DriveMotor.TURN_RR   # Rear Right
+        }
+        
         # Update steering servo positions
         for servo_index, target_position in self.target_steering_positions.items():
             current_position = self.current_steering_positions[servo_index]
@@ -723,18 +831,108 @@ class ControllerParser(Node):
                 if (step > 0 and new_position > target_position) or (step < 0 and new_position < target_position):
                     new_position = target_position
                 self.current_steering_positions[servo_index] = new_position
-                self.send_i2c(I2CAddress.STEERING_SERVO, (servo_index, new_position))
+                # Convert servo_index to corresponding motor number and send to DRIVE_SYSTEM address
+                self.send_i2c(I2CAddress.DRIVE_SYSTEM, [servo_to_motor[servo_index], new_position])
         
-        # Update wheel speeds
-        for address, target_speed in self.target_wheel_speeds.items():
-            current_speed = self.current_wheel_speeds[address]
-            if current_speed != target_speed:
-                step = WHEEL_SPEED_STEP_SIZE if current_speed < target_speed else -WHEEL_SPEED_STEP_SIZE
-                new_speed = current_speed + step
-                if (step > 0 and new_speed > target_speed) or (step < 0 and new_speed < target_speed):
-                    new_speed = target_speed
-                self.current_wheel_speeds[address] = new_speed
-                self.send_i2c(address, new_speed)
+        # Update wheel speeds - only check drive motors, not turn motors (which are handled above)
+        drive_motors = [DriveMotor.DRIVE_FL, DriveMotor.DRIVE_FR, DriveMotor.DRIVE_RL, DriveMotor.DRIVE_RR]
+        for motor in drive_motors:
+            if motor in self.target_wheel_speeds:
+                target_speed = self.target_wheel_speeds[motor]
+                current_speed = self.current_wheel_speeds[motor]
+                if current_speed != target_speed:
+                    step = WHEEL_SPEED_STEP_SIZE if current_speed < target_speed else -WHEEL_SPEED_STEP_SIZE
+                    new_speed = current_speed + step
+                    if (step > 0 and new_speed > target_speed) or (step < 0 and new_speed < target_speed):
+                        new_speed = target_speed
+                    self.current_wheel_speeds[motor] = new_speed
+                    # Send to DRIVE_SYSTEM address with motor as first byte and speed as second byte
+                    self.send_i2c(I2CAddress.DRIVE_SYSTEM, [motor, new_speed])
+
+    def _should_use_serial_transport(self, address: int) -> bool:
+        """
+        Determine if a command should be sent via serial instead of I2C.
+        
+        Args:
+            address: The I2C address or command identifier
+            
+        Returns:
+            True if serial transport should be used, False for I2C
+        """
+        # Always use serial transport for all commands as per Communication.cpp implementation
+        return True
+
+    def _translate_motor_id(self, address: int, motor_id: int) -> int:
+        """
+        Translate internal motor IDs to the ESP32's expected motor numbering.
+        
+        The ESP32 uses these motor IDs:
+        1-4: Drive motors (FL, FR, RL, RR)
+        5-8: Turn/servo motors (FL, FR, RL, RR)
+        9: Belt
+        10: Auger
+        11: Left Actuator
+        12: Right Actuator
+        13: Vibe motor
+        14: Camera Yaw
+        15: Camera Pitch
+        
+        Args:
+            address: I2C address (used to determine system)
+            motor_id: Internal motor ID
+            
+        Returns:
+            Corresponding ESP32 motor ID
+        """
+        # Drive system motors (already match ESP32 numbering)
+        if address == I2CAddress.DRIVE_SYSTEM:
+            return motor_id  # DriveMotor IDs already match ESP32's expected numbering
+            
+        # Excavation system motors need to be remapped
+        elif address == I2CAddress.EXCAVATION_SYSTEM:
+            # Map excavation motors to ESP32 motor IDs
+            excavation_to_esp32 = {
+                ExcavationMotor.BELT: 9,           # Belt -> 9
+                ExcavationMotor.AUGER: 10,         # Auger -> 10
+                ExcavationMotor.LEFT_ACTUATOR: 11, # Left Actuator -> 11
+                ExcavationMotor.RIGHT_ACTUATOR: 12, # Right Actuator -> 12
+                ExcavationMotor.VIBE_MOTOR: 13,     # Vibe Motor -> 13
+                ExcavationMotor.CAMERA_YAW: 14,     # Camera Yaw -> 14
+                ExcavationMotor.CAMERA_PITCH: 15    # Camera Pitch -> 15
+            }
+            return excavation_to_esp32.get(motor_id, motor_id)
+            
+        # Default: pass through the motor_id unchanged
+        return motor_id
+
+    def _set_camera_preset(self, preset: int) -> None:
+        """
+        Set the camera position to a preset configuration.
+        
+        Args:
+            preset: The preset index (see CameraPreset class)
+        """
+        # Ensure the preset is within valid range
+        preset = preset % CameraPreset.COUNT
+        self.current_camera_preset = preset
+        
+        # Get the preset values
+        yaw, pitch = CAMERA_PRESETS[preset]
+        
+        # Set the camera servos
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_YAW, yaw])
+        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
+        
+        # Log the change
+        preset_names = ["FORWARD", "DOWN", "UP"]
+        self.get_logger().info(f"Camera preset set to {preset_names[preset]}")
+        
+    def _cycle_camera_preset(self) -> None:
+        """
+        Cycle to the next camera preset.
+        """
+        next_preset = (self.current_camera_preset + 1) % CameraPreset.COUNT
+        self._set_camera_preset(next_preset)
 
 def main(args=None):
     """Main entry point for the node."""
