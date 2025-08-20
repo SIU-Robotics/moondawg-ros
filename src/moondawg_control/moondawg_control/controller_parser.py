@@ -37,10 +37,10 @@ SERVO_INDEXES = {
     3: "RL",  # Rear Left
     4: "RR"   # Rear Right
 }
-# I2C addresses - consolidated into a single place for easy maintenance
-class I2CAddress:
-    DRIVE_SYSTEM = 0x10
-    EXCAVATION_SYSTEM = 0x11
+# CAN IDs - consolidated for easy maintenance
+class CANID:
+    DRIVE_SYSTEM = 0x100
+    EXCAVATION_SYSTEM = 0x110
 
 # Motor indexes for DRIVE_SYSTEM
 class DriveMotor:
@@ -84,11 +84,11 @@ def clamp(value: float, low: float, high: float) -> float:
 
 class ControllerParser(Node):
     """
-    Node that parses controller inputs and translates them to robot commands.
+    Node that parses controller inputs and translates them to robot CAN bus commands.
     
     This node handles:
     - Xbox controller input processing
-    - Robot movement control through I2C commands
+    - Robot movement control through CAN bus commands
     - Belt and auger operation
     - Autonomous digging sequence control
     - Camera feed compression and streaming
@@ -178,23 +178,15 @@ class ControllerParser(Node):
             '/controller_parser/diag', 
             10
         )
-        self.i2c_publisher = self.create_publisher(
-            String, 
-            '/i2c_node/command', 
-            10
-        )
-        
-        # Serial publisher for sending commands to the serial node
-        self.serial_publisher = self.create_publisher(
+        # CAN publisher for sending commands to the CAN node
+        self.can_publisher = self.create_publisher(
             String,
-            '/serial_node/command',
+            '/can_node/command',
             10
         )
-        
-        # New publisher for I2C command history
         self.i2c_history_pub = self.create_publisher(
             String,
-            '/controller_parser/i2c_history',
+            '/controller_parser/can_history',
             10
         )
         
@@ -221,7 +213,7 @@ class ControllerParser(Node):
         # Timers
         self.heartbeat_timer = self.create_timer(1.0, self.heartbeat)
         
-        # Add a timer to publish I2C command history periodically
+        # Add a timer to publish CAN command history periodically
         self.i2c_history_timer = self.create_timer(0.5, self.publish_i2c_history)
         
         # Add a timer for servo interpolation updates
@@ -541,8 +533,8 @@ class ControllerParser(Node):
         Args:
             position: The position to set (UP or DOWN)
         """
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.LEFT_ACTUATOR, position])
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.RIGHT_ACTUATOR, position])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.LEFT_ACTUATOR, position])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.RIGHT_ACTUATOR, position])
 
     def _set_belt_speed(self, speed: int) -> None:
         """
@@ -551,7 +543,7 @@ class ControllerParser(Node):
         Args:
             speed: The speed to set (0-180, 90 is stopped)
         """
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.BELT, speed])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.BELT, speed])
 
     def _set_auger_deposition(self, direction: int) -> None:
         """
@@ -560,7 +552,7 @@ class ControllerParser(Node):
         Args:
             direction: The direction to set (FORWARD, MOTOR_STOPPED, etc.)
         """
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.AUGER, direction])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.AUGER, direction])
 
     def _set_vibrator(self, state: int) -> None:
         """
@@ -569,7 +561,7 @@ class ControllerParser(Node):
         Args:
             state: The state to set (ON, OFF)
         """
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.VIBE_MOTOR, state])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.VIBE_MOTOR, state])
 
     def _parse_buttons(self, data: List[int]) -> Dict[str, float]:
         return {
@@ -677,124 +669,54 @@ class ControllerParser(Node):
         else:
             self.get_logger().info(message)
 
-    def send_i2c(self, address: int, data: Union[int, Tuple, List]) -> None:
+    def send_can(self, can_id: int, data: Union[int, Tuple, List]) -> None:
         """
-        Send command to the serial node to control the ESP32.
+        Send command to the CAN node to control hardware via CAN bus.
         
         Args:
-            address: I2C address or command identifier (now used only for history tracking)
-            data: Data to send (can be an int, tuple, or list)
+            can_id: CAN arbitration ID
+            data: Data to send (list of bytes)
         """
-        # For ESP32 serial communication, we only need motor_id and value
-        # The ESP32 expects format <motor>,<value> with a newline
         if isinstance(data, (tuple, list)) and len(data) == 2:
-            # Translate from our internal motor IDs to ESP32 motor IDs
             motor_id, value = data
-            esp32_motor_id = self._translate_motor_id(address, motor_id)
-            
-            # Format message for ESP32: motor,value
-            serial_msg = f"{esp32_motor_id},{value}"
-            
-            # Keep the I2C history tracking for UI display
-            self._update_i2c_history(address, f"{motor_id},{value}")
+            can_motor_id = self._translate_motor_id(can_id, motor_id)
+            # Format: <can_id>:<motor_id>,<value>
+            can_msg = f"{hex(can_id)}:{can_motor_id},{value}"
+            self._update_can_history(can_id, f"{can_motor_id},{value}")
         else:
-            # Handle unexpected format - just convert to string
-            self.get_logger().warn(f"Unexpected command format: {data}")
-            serial_msg = str(data)
-            self._update_i2c_history(address, str(data))
-            
-        # Send all commands to serial
-        self.serial_publisher.publish(String(data=serial_msg))
-        self.get_logger().debug(f"Sent serial command: {serial_msg}")
+            self.get_logger().warn(f"Unexpected CAN command format: {data}")
+            can_msg = f"{hex(can_id)}:{str(data)}"
+            self._update_can_history(can_id, str(data))
+        self.can_publisher.publish(String(data=can_msg))
+        self.get_logger().debug(f"Sent CAN command: {can_msg}")
 
-    def _get_motor_name(self, address: int, motor_id: int) -> str:
+    def _update_can_history(self, can_id: int, data_str: str) -> None:
         """
-        Get a human-readable name for a motor ID based on the system address.
+        Update the CAN command history for an ID.
         
         Args:
-            address: I2C address (system type)
-            motor_id: Motor ID within that system
-            
-        Returns:
-            String name of the motor
-        """
-        if address == I2CAddress.DRIVE_SYSTEM:
-            motor_names = {
-                DriveMotor.DRIVE_FL: "Front Left Drive",
-                DriveMotor.DRIVE_FR: "Front Right Drive",
-                DriveMotor.DRIVE_RL: "Rear Left Drive",
-                DriveMotor.DRIVE_RR: "Rear Right Drive",
-                DriveMotor.TURN_FL: "Front Left Turn",
-                DriveMotor.TURN_FR: "Front Right Turn",
-                DriveMotor.TURN_RL: "Rear Left Turn",
-                DriveMotor.TURN_RR: "Rear Right Turn",
-            }
-            return motor_names.get(motor_id, f"Unknown Drive Motor ({motor_id})")
-        elif address == I2CAddress.EXCAVATION_SYSTEM:
-            motor_names = {
-                ExcavationMotor.BELT: "Belt",
-                ExcavationMotor.AUGER: "Auger",
-                ExcavationMotor.LEFT_ACTUATOR: "Left Actuator",
-                ExcavationMotor.RIGHT_ACTUATOR: "Right Actuator",
-                ExcavationMotor.VIBE_MOTOR: "Vibration Motor",
-                ExcavationMotor.CAMERA_YAW: "Camera Yaw",
-                ExcavationMotor.CAMERA_PITCH: "Camera Pitch",
-            }
-            return motor_names.get(motor_id, f"Unknown Excavation Motor ({motor_id})")
-        else:
-            return f"Unknown Motor ({motor_id})"
-
-    def _update_i2c_history(self, address: int, data_str: str) -> None:
-        """
-        Update the I2C command history for an address.
-        
-        Args:
-            address: I2C address
+            can_id: CAN arbitration ID
             data_str: String representation of the data sent
         """
-        # Get human-readable name for the address
-        device_name = self._get_device_name(address)
-        
-        # Parse data to get human-readable motor description if it's a list format
+        device_name = self._get_device_name(can_id)
         readable_command = data_str
         parts = data_str.split(',')
         if len(parts) >= 2 and parts[0].isdigit():
             motor_id = int(parts[0])
             value = parts[1]
-            motor_name = self._get_motor_name(address, motor_id)
+            motor_name = self._get_motor_name(can_id, motor_id)
             readable_command = f"{motor_name}: {value}"
-        
-        # Store the command in the history with timestamp
-        self.i2c_command_history[address] = {
+        self.i2c_command_history[can_id] = {
             'device_name': device_name,
-            'address': hex(address),
+            'can_id': hex(can_id),
             'last_command': readable_command,
             'timestamp': datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
         }
-        
-        # Immediately publish to show instant updates
-        self.publish_i2c_history()
+        self.publish_can_history()
 
-    def _get_device_name(self, address: int) -> str:
+    def publish_can_history(self) -> None:
         """
-        Get a human-readable name for an I2C address.
-        
-        Args:
-            address: I2C address
-            
-        Returns:
-            String name of the device
-        """
-        device_names = {
-            I2CAddress.DRIVE_SYSTEM: "Drive System",
-            I2CAddress.EXCAVATION_SYSTEM: "Excavation System",
-        }
-        
-        return device_names.get(address, f"Unknown Device ({hex(address)})")
-    
-    def publish_i2c_history(self) -> None:
-        """
-        Publish the I2C command history as a JSON string.
+        Publish the CAN command history as a JSON string.
         """
         if not self.i2c_command_history and all(pos == 90 for pos in self.current_steering_positions.values()):
             return
@@ -812,17 +734,14 @@ class ControllerParser(Node):
 
     def _update_servo_positions(self) -> None:
         """
-        Update servo positions and wheel speeds gradually to their target positions.
+        Update servo positions and wheel speeds gradually to their target positions via CAN.
         """
-        # Create mappings for servo indexes to motor numbers
         servo_to_motor = {
             1: DriveMotor.TURN_FL,  # Front Left
             2: DriveMotor.TURN_FR,  # Front Right
             3: DriveMotor.TURN_RL,  # Rear Left
             4: DriveMotor.TURN_RR   # Rear Right
         }
-        
-        # Update steering servo positions
         for servo_index, target_position in self.target_steering_positions.items():
             current_position = self.current_steering_positions[servo_index]
             if current_position != target_position:
@@ -831,10 +750,7 @@ class ControllerParser(Node):
                 if (step > 0 and new_position > target_position) or (step < 0 and new_position < target_position):
                     new_position = target_position
                 self.current_steering_positions[servo_index] = new_position
-                # Convert servo_index to corresponding motor number and send to DRIVE_SYSTEM address
-                self.send_i2c(I2CAddress.DRIVE_SYSTEM, [servo_to_motor[servo_index], new_position])
-        
-        # Update wheel speeds - only check drive motors, not turn motors (which are handled above)
+                self.send_can(CANID.DRIVE_SYSTEM, [servo_to_motor[servo_index], new_position])
         drive_motors = [DriveMotor.DRIVE_FL, DriveMotor.DRIVE_FR, DriveMotor.DRIVE_RL, DriveMotor.DRIVE_RR]
         for motor in drive_motors:
             if motor in self.target_wheel_speeds:
@@ -846,65 +762,52 @@ class ControllerParser(Node):
                     if (step > 0 and new_speed > target_speed) or (step < 0 and new_speed < target_speed):
                         new_speed = target_speed
                     self.current_wheel_speeds[motor] = new_speed
-                    # Send to DRIVE_SYSTEM address with motor as first byte and speed as second byte
-                    self.send_i2c(I2CAddress.DRIVE_SYSTEM, [motor, new_speed])
+                    self.send_can(CANID.DRIVE_SYSTEM, [motor, new_speed])
 
-    def _should_use_serial_transport(self, address: int) -> bool:
+    def _translate_motor_id(self, can_id: int, motor_id: int) -> int:
         """
-        Determine if a command should be sent via serial instead of I2C.
+        Translate internal motor IDs to CAN bus motor IDs.
         
         Args:
-            address: The I2C address or command identifier
-            
-        Returns:
-            True if serial transport should be used, False for I2C
-        """
-        # Always use serial transport for all commands as per Communication.cpp implementation
-        return True
-
-    def _translate_motor_id(self, address: int, motor_id: int) -> int:
-        """
-        Translate internal motor IDs to the ESP32's expected motor numbering.
-        
-        The ESP32 uses these motor IDs:
-        1-4: Drive motors (FL, FR, RL, RR)
-        5-8: Turn/servo motors (FL, FR, RL, RR)
-        9: Belt
-        10: Auger
-        11: Left Actuator
-        12: Right Actuator
-        13: Vibe motor
-        14: Camera Yaw
-        15: Camera Pitch
-        
-        Args:
-            address: I2C address (used to determine system)
+            can_id: CAN arbitration ID
             motor_id: Internal motor ID
             
         Returns:
-            Corresponding ESP32 motor ID
+            Corresponding CAN motor ID
         """
-        # Drive system motors (already match ESP32 numbering)
-        if address == I2CAddress.DRIVE_SYSTEM:
-            return motor_id  # DriveMotor IDs already match ESP32's expected numbering
-            
-        # Excavation system motors need to be remapped
-        elif address == I2CAddress.EXCAVATION_SYSTEM:
-            # Map excavation motors to ESP32 motor IDs
-            excavation_to_esp32 = {
-                ExcavationMotor.BELT: 9,           # Belt -> 9
-                ExcavationMotor.AUGER: 10,         # Auger -> 10
-                ExcavationMotor.LEFT_ACTUATOR: 11, # Left Actuator -> 11
-                ExcavationMotor.RIGHT_ACTUATOR: 12, # Right Actuator -> 12
-                ExcavationMotor.VIBE_MOTOR: 13,     # Vibe Motor -> 13
-                ExcavationMotor.CAMERA_YAW: 14,     # Camera Yaw -> 14
-                ExcavationMotor.CAMERA_PITCH: 15    # Camera Pitch -> 15
+        # Drive system motors (already match CAN numbering)
+        if can_id == CANID.DRIVE_SYSTEM:
+            return motor_id
+        elif can_id == CANID.EXCAVATION_SYSTEM:
+            excavation_to_can = {
+                ExcavationMotor.BELT: 9,
+                ExcavationMotor.AUGER: 10,
+                ExcavationMotor.LEFT_ACTUATOR: 11,
+                ExcavationMotor.RIGHT_ACTUATOR: 12,
+                ExcavationMotor.VIBE_MOTOR: 13,
+                ExcavationMotor.CAMERA_YAW: 14,
+                ExcavationMotor.CAMERA_PITCH: 15
             }
-            return excavation_to_esp32.get(motor_id, motor_id)
-            
-        # Default: pass through the motor_id unchanged
+            return excavation_to_can.get(motor_id, motor_id)
         return motor_id
 
+    def _get_device_name(self, can_id: int) -> str:
+        """
+        Get a human-readable name for an I2C address.
+        
+        Args:
+            can_id: CAN arbitration ID
+            
+        Returns:
+            String name of the device
+        """
+        device_names = {
+            CANID.DRIVE_SYSTEM: "Drive System",
+            CANID.EXCAVATION_SYSTEM: "Excavation System",
+        }
+        
+        return device_names.get(can_id, f"Unknown Device ({hex(can_id)})")
+    
     def _set_camera_preset(self, preset: int) -> None:
         """
         Set the camera position to a preset configuration.
@@ -920,8 +823,8 @@ class ControllerParser(Node):
         yaw, pitch = CAMERA_PRESETS[preset]
         
         # Set the camera servos
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_YAW, yaw])
-        self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_YAW, yaw])
+        self.send_can(CANID.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
         
         # Log the change
         preset_names = ["FORWARD", "DOWN", "UP"]
