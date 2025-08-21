@@ -7,7 +7,11 @@ echo "Installing dependencies for ROS2 intra-process communication..."
 sudo apt-get update
 sudo apt-get install -y \
     ros-humble-rclcpp-components \
-    ros-humble-composition
+    ros-humble-composition \
+    python3-can
+
+# Also install via pip for user environments
+pip3 install python-can
 
 echo "Dependencies installed successfully!"
 echo "Building the workspace..."
@@ -17,4 +21,4 @@ cd ..
 colcon build --symlink-install
 
 echo "Done! You can now run the launch file with intra-process communication enabled:"
-echo "ros2 launch moondawg moondawg.launch.py"
+echo "ros2 launch moondawg_launch moondawg.launch.py"

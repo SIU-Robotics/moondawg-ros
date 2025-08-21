@@ -11,7 +11,9 @@ apt update
 apt install ros-jazzy-cv-bridge ros-jazzy-rosbridge-suite ros-jazzy-image-tools -y
 apt install ros-jazzy-realsense2* -y
 apt install ros-jazzy-librealsense2* -y
-apt install python3-opencv python3-smbus2 -y
+
+apt install python3-opencv python3-smbus2 python3-can -y
+pip3 install python-can
 
 git clone https://github.com/IntelRealSense/librealsense
 cd librealsense
