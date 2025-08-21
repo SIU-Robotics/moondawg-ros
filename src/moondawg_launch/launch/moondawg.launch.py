@@ -17,7 +17,6 @@ def generate_launch_description():
     realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
     realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
 
-    i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
     
     # Controller parser parameters
@@ -57,21 +56,6 @@ def generate_launch_description():
             'realsense2_serial',
             default_value='',
             description='Serial number for second RealSense camera (leave empty to use any available)'
-        ),
-        DeclareLaunchArgument(
-            'useSerial',
-            default_value='false',
-            description='Use serial communication instead of I2C'
-        ),
-        DeclareLaunchArgument(
-            'serial_port',
-            default_value='/dev/ttyACM0',
-            description='Serial port for Arduino communication'
-        ),
-        DeclareLaunchArgument(
-            'i2c_bus',
-            default_value='1',
-            description='I2C bus ID'
         ),
         DeclareLaunchArgument(
             'debug',
@@ -133,22 +117,16 @@ def generate_launch_description():
         ),
         Node(
             package='moondawg_control',
-            executable='serial_node',
-            name='serial_node',
-            output='screen'
+            executable='can_node',
+            name='can_node',
+            output='screen',
+            parameters=[
+                {'interface': 'can0'},
+                {'bustype': 'socketcan'},
+                {'heartbeat_interval': 1.0},
+                {'command_timeout': 5.0}
+            ]
         )
-        # Node(
-        #     package='moondawg_control',
-        #     executable='i2c_node',
-        #     name='i2c_node',
-        #     output='screen',
-        #     parameters=[
-        #         {'bus_id': i2c_bus},
-        #         {'heartbeat_interval': 1.0},
-        #         {'command_timeout': 5.0},
-        #         {'debug': debug_mode}
-        #     ]
-        # ),
     ]
 
     shared_container = ComposableNodeContainer(
