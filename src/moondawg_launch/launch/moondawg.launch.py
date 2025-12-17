@@ -65,7 +65,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'serial_port',
-            default_value='/dev/ttyACM0',
+            default_value='/dev/ttyUSB0',
             description='Serial port for Arduino communication'
         ),
         DeclareLaunchArgument(
@@ -143,7 +143,7 @@ def generate_launch_description():
             name='unitree_lidar_ros2_node',
             output='screen',
             parameters= [
-                    {'port': '/dev/ttyUSB0'},
+                    {'port': '/dev/ttyUSB1'},
                     {'rotate_yaw_bias': 0.0},
                     {'range_scale': 0.001},
                     {'range_bias': 0.0},
