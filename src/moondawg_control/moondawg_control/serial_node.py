@@ -35,7 +35,7 @@ class SerialNode(Node):
 
     def _declare_parameters(self) -> None:
         """Declare all ROS parameters for this node."""
-        self.declare_parameter('port', '/dev/ttyUSB0')  # Default serial port
+        self.declare_parameter('port', '/dev/ttyUSB1')  # Default serial port
         self.declare_parameter('baud_rate', 115200)     # Default baud rate
         self.declare_parameter('timeout', 1.0)          # Serial timeout in seconds
         self.declare_parameter('line_ending', '\n')     # Line termination character

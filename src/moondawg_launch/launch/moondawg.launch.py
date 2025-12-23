@@ -143,7 +143,7 @@ def generate_launch_description():
             name='unitree_lidar_ros2_node',
             output='screen',
             parameters= [
-                    {'port': '/dev/ttyUSB1'},
+                    {'port': '/dev/ttyUSB0'},
                     {'rotate_yaw_bias': 0.0},
                     {'range_scale': 0.001},
                     {'range_bias': 0.0},
