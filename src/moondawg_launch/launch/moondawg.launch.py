@@ -154,6 +154,24 @@ def generate_launch_description():
                     {'cloud_scan_num': 18},
                     {'imu_frame': "unilidar_imu"},
                     {'imu_topic': "unilidar/imu"}]
+        ),
+        Node(
+            package='unitree_lidar_ros2',
+            executable='lidar_filter_node',
+            name='lidar_filter_node',
+            output='screen',
+            parameters=[
+                    {'wall_rejection_distance': 0.3},
+                    {'ground_height_min': -0.05},
+                    {'ground_height_max': 0.05},
+                    {'target_frame': 'map'},
+                    # {'target_frame': 'unilidar_lidar'}, # For testing
+                    {'source_frame': 'unilidar_lidar'},
+                    {'laser_scan_min_angle': -3.14159},
+                    {'laser_scan_max_angle': 3.14159},
+                    {'laser_scan_angle_increment': 0.00872664626},
+                    {'laser_scan_range_min': 0.1},
+                    {'laser_scan_range_max': 50.0}]
         )
         # Node(
         #     package='moondawg_control',
