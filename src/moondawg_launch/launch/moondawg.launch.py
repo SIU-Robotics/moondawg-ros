@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration, EnvironmentVariable
 from launch.conditions import IfCondition
 from launch_ros.actions import Node, ComposableNodeContainer
@@ -9,13 +9,13 @@ from launch_ros.descriptions import ComposableNode
 def generate_launch_description():
     """Generate launch description for moondawg package."""    
     # Camera enable flags - individual control for each camera
-    enable_usb_camera = LaunchConfiguration('enable_usb', default='true')
+    enable_usb_camera = LaunchConfiguration('enable_usb', default='false')
     enable_depth1 = LaunchConfiguration('enable_depth1', default='true')
-    enable_depth2 = LaunchConfiguration('enable_depth2', default='false')
+    enable_depth2 = LaunchConfiguration('enable_depth2', default='true')
     
     camera_device = LaunchConfiguration('camera_device', default='6')
-    realsense1_serial = LaunchConfiguration('realsense1_serial', default='')
-    realsense2_serial = LaunchConfiguration('realsense2_serial', default='')
+    realsense1_serial = LaunchConfiguration('realsense1_serial', default="'335222074167'")
+    realsense2_serial = LaunchConfiguration('realsense2_serial', default="'349622073747'")
 
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
@@ -40,7 +40,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'enable_depth2',
-            default_value='false',
+            default_value='true',
             description='Enable or disable the second RealSense depth camera'
         ),
         DeclareLaunchArgument(
@@ -50,12 +50,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'realsense1_serial',
-            default_value='',
+            default_value="'335222074167'",
             description='Serial number for first RealSense camera (leave empty to use any available)'
         ),
         DeclareLaunchArgument(
             'realsense2_serial',
-            default_value='',
+            default_value="'349622073747'",
             description='Serial number for second RealSense camera (leave empty to use any available)'
         ),
         DeclareLaunchArgument(
@@ -164,8 +164,8 @@ def generate_launch_description():
                     {'wall_rejection_distance': 0.3},
                     {'ground_height_min': -0.05},
                     {'ground_height_max': 0.05},
-                    {'target_frame': 'map'},
-                    # {'target_frame': 'unilidar_lidar'}, # For testing
+                    # {'target_frame': 'map'},
+                    {'target_frame': 'unilidar_lidar'}, # For testing
                     {'source_frame': 'unilidar_lidar'},
                     {'laser_scan_min_angle': -3.14159},
                     {'laser_scan_max_angle': 3.14159},
@@ -234,13 +234,13 @@ def generate_launch_description():
                     'enable_infra2': False,
                     'rgb_camera.color_profile': '640x360x15',
                     'depth_module.depth_profile': '640x360x15',
-                    'clip_distance': 6.0,
+                    'clip_distance': 3.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
                     'enable_sync': False,
                     'align_depth.enable': True,
                     'filters': '',
-                    'device_type': 'D456',
+                    'device_type': 'D435',
                     'depth_module.global_time_enabled': False,
                     'enable_auto_exposure': True,
                 }],
