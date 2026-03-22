@@ -120,6 +120,12 @@ var controllerI2CHistoryTopic = new ROSLIB.Topic({
   messageType: "std_msgs/String",
 });
 
+function updateImageWithMimeType(imgElement, data) {
+  if (!imgElement || !data) return;
+  const fixed = "data:" + data.replace(",", ";base64,");
+  imgElement.src = fixed;
+}
+
 // Subscribe to camera node topics
 cameraNodeImageTopic.subscribe(function (message) {
   updateImageWithMimeType(

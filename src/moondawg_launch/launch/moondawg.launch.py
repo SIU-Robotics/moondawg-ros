@@ -30,7 +30,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument(
             'enable_usb',
-            default_value='true',
+            default_value='false',
             description='Enable or disable the USB camera'
         ),
         DeclareLaunchArgument(
