@@ -25,6 +25,17 @@ def generate_launch_description():
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     # General quality can still be launch args
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
+
+    # Marker detection parameters
+    enable_marker_detection = LaunchConfiguration('enable_marker_detection', default='true')
+    marker_camera_id = LaunchConfiguration('marker_camera_id', default='1')
+    hsv_h_min = LaunchConfiguration('hsv_h_min', default='5')
+    hsv_h_max = LaunchConfiguration('hsv_h_max', default='25')
+    hsv_s_min = LaunchConfiguration('hsv_s_min', default='100')
+    hsv_s_max = LaunchConfiguration('hsv_s_max', default='255')
+    hsv_v_min = LaunchConfiguration('hsv_v_min', default='100')
+    hsv_v_max = LaunchConfiguration('hsv_v_max', default='255')
+    min_marker_area = LaunchConfiguration('min_marker_area', default='100')
     
     # Declare launch arguments so they can be passed on the command line
     args = [
@@ -93,6 +104,51 @@ def generate_launch_description():
             default_value='20',
             description='Image compression quality (1-100)'
         ),
+        DeclareLaunchArgument(
+            'enable_marker_detection',
+            default_value='true',
+            description='Enable marker detection for dump zone localization'
+        ),
+        DeclareLaunchArgument(
+            'marker_camera_id',
+            default_value='1',
+            description='Which camera to use for marker detection (1 or 2)'
+        ),
+        DeclareLaunchArgument(
+            'hsv_h_min',
+            default_value='5',
+            description='HSV H minimum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'hsv_h_max',
+            default_value='25',
+            description='HSV H maximum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'hsv_s_min',
+            default_value='100',
+            description='HSV S minimum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'hsv_s_max',
+            default_value='255',
+            description='HSV S maximum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'hsv_v_min',
+            default_value='100',
+            description='HSV V minimum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'hsv_v_max',
+            default_value='255',
+            description='HSV V maximum threshold for orange marker detection'
+        ),
+        DeclareLaunchArgument(
+            'min_marker_area',
+            default_value='100',
+            description='Minimum contour area to be considered a marker'
+        ),
     ]
     
     # Define regular nodes (not part of the camera composition)
@@ -119,60 +175,60 @@ def generate_launch_description():
                 {'fps': 15.0}
             ]
         ),
-        Node(
-            package='moondawg_control',
-            executable='controller_parser',
-            name='controller_parser',
-            output='screen',
-            parameters=[
-                {'joystick_deadzone': joystick_deadzone},
-                {'turn_sensitivity': turn_sensitivity},
-                {'image_compression_quality': image_compression_quality},
-                {'debug': debug_mode}
-            ]
-        ),
-        Node(
-            package='moondawg_control',
-            executable='serial_node',
-            name='serial_node',
-            output='screen'
-        ),
-        Node(
-            package='unitree_lidar_ros2',
-            executable='unitree_lidar_ros2_node',
-            name='unitree_lidar_ros2_node',
-            output='screen',
-            parameters= [
-                    {'port': '/dev/ttyUSB0'},
-                    {'rotate_yaw_bias': 0.0},
-                    {'range_scale': 0.001},
-                    {'range_bias': 0.0},
-                    {'range_max': 50.0},
-                    {'range_min': 0.0},
-                    {'cloud_frame': "unilidar_lidar"},
-                    {'cloud_topic': "unilidar/cloud"},
-                    {'cloud_scan_num': 18},
-                    {'imu_frame': "unilidar_imu"},
-                    {'imu_topic': "unilidar/imu"}]
-        ),
-        Node(
-            package='unitree_lidar_ros2',
-            executable='lidar_filter_node',
-            name='lidar_filter_node',
-            output='screen',
-            parameters=[
-                    {'wall_rejection_distance': 0.3},
-                    {'ground_height_min': -0.05},
-                    {'ground_height_max': 0.05},
-                    # {'target_frame': 'map'},
-                    {'target_frame': 'unilidar_lidar'}, # For testing
-                    {'source_frame': 'unilidar_lidar'},
-                    {'laser_scan_min_angle': -3.14159},
-                    {'laser_scan_max_angle': 3.14159},
-                    {'laser_scan_angle_increment': 0.00872664626},
-                    {'laser_scan_range_min': 0.1},
-                    {'laser_scan_range_max': 50.0}]
-        )
+        # Node(
+        #     package='moondawg_control',
+        #     executable='controller_parser',
+        #     name='controller_parser',
+        #     output='screen',
+        #     parameters=[
+        #         {'joystick_deadzone': joystick_deadzone},
+        #         {'turn_sensitivity': turn_sensitivity},
+        #         {'image_compression_quality': image_compression_quality},
+        #         {'debug': debug_mode}
+        #     ]
+        # ),
+        # Node(
+        #     package='moondawg_control',
+        #     executable='serial_node',
+        #     name='serial_node',
+        #     output='screen'
+        # ),
+        # Node(
+        #     package='unitree_lidar_ros2',
+        #     executable='unitree_lidar_ros2_node',
+        #     name='unitree_lidar_ros2_node',
+        #     output='screen',
+        #     parameters= [
+        #             {'port': '/dev/ttyUSB0'},
+        #             {'rotate_yaw_bias': 0.0},
+        #             {'range_scale': 0.001},
+        #             {'range_bias': 0.0},
+        #             {'range_max': 50.0},
+        #             {'range_min': 0.0},
+        #             {'cloud_frame': "unilidar_lidar"},
+        #             {'cloud_topic': "unilidar/cloud"},
+        #             {'cloud_scan_num': 18},
+        #             {'imu_frame': "unilidar_imu"},
+        #             {'imu_topic': "unilidar/imu"}]
+        # ),
+        # Node(
+        #     package='unitree_lidar_ros2',
+        #     executable='lidar_filter_node',
+        #     name='lidar_filter_node',
+        #     output='screen',
+        #     parameters=[
+        #             {'wall_rejection_distance': 0.3},
+        #             {'ground_height_min': -0.05},
+        #             {'ground_height_max': 0.05},
+        #             # {'target_frame': 'map'},
+        #             {'target_frame': 'unilidar_lidar'}, # For testing
+        #             {'source_frame': 'unilidar_lidar'},
+        #             {'laser_scan_min_angle': -3.14159},
+        #             {'laser_scan_max_angle': 3.14159},
+        #             {'laser_scan_angle_increment': 0.00872664626},
+        #             {'laser_scan_range_min': 0.1},
+        #             {'laser_scan_range_max': 50.0}]
+        # )
         # Node(
         #     package='moondawg_control',
         #     executable='i2c_node',
@@ -331,6 +387,44 @@ def generate_launch_description():
                     ('image_compressed', '/camera_node/usb_camera_image') # Publication for web UI with unique topic name
                 ],
                 condition=IfCondition(enable_usb_camera)
+            ),
+            # Marker detection for camera 1
+            ComposableNode(
+                package='moondawg_marker',
+                plugin='moondawg::MarkerComponent',
+                name='marker_detector_camera1',
+                parameters=[{
+                    'camera_topic_prefix': '/realsense/camera1',
+                    'hsv_h_min': hsv_h_min,
+                    'hsv_h_max': hsv_h_max,
+                    'hsv_s_min': hsv_s_min,
+                    'hsv_s_max': hsv_s_max,
+                    'hsv_v_min': hsv_v_min,
+                    'hsv_v_max': hsv_v_max,
+                    'min_marker_area': min_marker_area,
+                    'expected_marker_count': 4,
+                    'enable_debug_output': True,
+                }],
+                condition=IfCondition(enable_depth1)
+            ),
+            # Marker detection for camera 2
+            ComposableNode(
+                package='moondawg_marker',
+                plugin='moondawg::MarkerComponent',
+                name='marker_detector_camera2',
+                parameters=[{
+                    'camera_topic_prefix': '/realsense/camera2',
+                    'hsv_h_min': hsv_h_min,
+                    'hsv_h_max': hsv_h_max,
+                    'hsv_s_min': hsv_s_min,
+                    'hsv_s_max': hsv_s_max,
+                    'hsv_v_min': hsv_v_min,
+                    'hsv_v_max': hsv_v_max,
+                    'min_marker_area': min_marker_area,
+                    'expected_marker_count': 4,
+                    'enable_debug_output': False,
+                }],
+                condition=IfCondition(enable_depth2)
             ),
         ],
         output='screen',
