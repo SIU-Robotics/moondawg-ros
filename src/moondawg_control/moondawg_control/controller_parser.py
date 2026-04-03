@@ -65,16 +65,17 @@ class ExcavationMotor:
 
 # Camera position presets
 class CameraPreset:
-    FORWARD = 0
-    DOWN = 1
-    UP = 2
+    HOPPER = 0
+    DIG = 1
+    SIDE = 2
     COUNT = 3  # Total number of presets
 
 # Camera preset configurations (yaw, pitch)
+# May need to +180 to yaw #'s depending on how its mounted
 CAMERA_PRESETS = [
-    (90, 90),    # FORWARD: Center position
-    (90, 150),   # DOWN: Looking down
-    (90, 30)     # UP: Looking up
+    (0, 90),    # HOPPER: Looking inside hopper
+    (90, 90),   # DOWN: Looking where its digging
+    (180, 90)   # UP: Looking away from the robot
 ]
 
 def clamp(value: float, low: float, high: float) -> float:
@@ -140,7 +141,7 @@ class ControllerParser(Node):
         self.i2c_command_history = {}
         
         # Track current camera preset
-        self.current_camera_preset = CameraPreset.FORWARD
+        self.current_camera_preset = CameraPreset.DIG
         
         # Track steering positions for condensed display
         self.current_steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}
@@ -924,7 +925,7 @@ class ControllerParser(Node):
         self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
         
         # Log the change
-        preset_names = ["FORWARD", "DOWN", "UP"]
+        preset_names = ["HOPPER", "DIG", "SIDE"]
         self.get_logger().info(f"Camera preset set to {preset_names[preset]}")
         
     def _cycle_camera_preset(self) -> None:
