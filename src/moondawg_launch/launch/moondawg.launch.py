@@ -175,24 +175,24 @@ def generate_launch_description():
                 {'fps': 15.0}
             ]
         ),
-        # Node(
-        #     package='moondawg_control',
-        #     executable='controller_parser',
-        #     name='controller_parser',
-        #     output='screen',
-        #     parameters=[
-        #         {'joystick_deadzone': joystick_deadzone},
-        #         {'turn_sensitivity': turn_sensitivity},
-        #         {'image_compression_quality': image_compression_quality},
-        #         {'debug': debug_mode}
-        #     ]
-        # ),
-        # Node(
-        #     package='moondawg_control',
-        #     executable='serial_node',
-        #     name='serial_node',
-        #     output='screen'
-        # ),
+        Node(
+            package='moondawg_control',
+            executable='controller_parser',
+            name='controller_parser',
+            output='screen',
+            parameters=[
+                {'joystick_deadzone': joystick_deadzone},
+                {'turn_sensitivity': turn_sensitivity},
+                {'image_compression_quality': image_compression_quality},
+                {'debug': debug_mode}
+            ]
+        ),
+        Node(
+            package='moondawg_control',
+            executable='serial_node',
+            name='serial_node',
+            output='screen'
+        ),
         # Node(
         #     package='unitree_lidar_ros2',
         #     executable='unitree_lidar_ros2_node',
