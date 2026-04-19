@@ -3,8 +3,9 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
 from launch.substitutions import LaunchConfiguration, EnvironmentVariable
 from launch.conditions import IfCondition
-from launch_ros.actions import Node, ComposableNodeContainer
+from launch_ros.actions import Node, ComposableNodeContainer, LoadComposableNodes
 from launch_ros.descriptions import ComposableNode
+from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     """Generate launch description for moondawg package."""    
@@ -14,8 +15,9 @@ def generate_launch_description():
     enable_depth2 = LaunchConfiguration('enable_depth2', default='true')
     
     camera_device = LaunchConfiguration('camera_device', default='6')
-    realsense1_serial = LaunchConfiguration('realsense1_serial', default="'335222074167'")
-    realsense2_serial = LaunchConfiguration('realsense2_serial', default="'349622073747'")
+
+    realsense1_serial = LaunchConfiguration('realsense1_serial', default='335222074167')
+    realsense2_serial = LaunchConfiguration('realsense2_serial', default='349622073747')
 
     i2c_bus = LaunchConfiguration('i2c_bus', default='1')
     debug_mode = LaunchConfiguration('debug', default='false')
@@ -23,11 +25,10 @@ def generate_launch_description():
     # Controller parser parameters
     joystick_deadzone = LaunchConfiguration('joystick_deadzone', default='0.1')
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
-    # General quality can still be launch args
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
 
     # Marker detection parameters
-    enable_marker_detection = LaunchConfiguration('enable_marker_detection', default='true')
+    enable_marker_detection = LaunchConfiguration('enable_marker_detection', default='false')
     marker_camera_id = LaunchConfiguration('marker_camera_id', default='1')
     hsv_h_min = LaunchConfiguration('hsv_h_min', default='5')
     hsv_h_max = LaunchConfiguration('hsv_h_max', default='25')
@@ -37,7 +38,6 @@ def generate_launch_description():
     hsv_v_max = LaunchConfiguration('hsv_v_max', default='255')
     min_marker_area = LaunchConfiguration('min_marker_area', default='100')
     
-    # Declare launch arguments so they can be passed on the command line
     args = [
         DeclareLaunchArgument(
             'enable_usb',
@@ -56,18 +56,18 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'camera_device',
-            default_value='6',
+            default_value='0',
             description='Camera device path'
         ),
         DeclareLaunchArgument(
             'realsense1_serial',
-            default_value="'335222074167'",
-            description='Serial number for first RealSense camera (leave empty to use any available)'
+            default_value='335222074167',
+            description='Serial number for first RealSense camera (USB 3.2, port 3-1)'
         ),
         DeclareLaunchArgument(
             'realsense2_serial',
-            default_value="'349622073747'",
-            description='Serial number for second RealSense camera (leave empty to use any available)'
+            default_value='349622073747',
+            description='Serial number for second RealSense camera (USB 2.1, port 4-2)'
         ),
         DeclareLaunchArgument(
             'useSerial',
@@ -151,7 +151,6 @@ def generate_launch_description():
         ),
     ]
     
-    # Define regular nodes (not part of the camera composition)
     regular_nodes = [
         Node(
             package='rosbridge_server',
@@ -175,24 +174,24 @@ def generate_launch_description():
                 {'fps': 15.0}
             ]
         ),
-        # Node(
-        #     package='moondawg_control',
-        #     executable='controller_parser',
-        #     name='controller_parser',
-        #     output='screen',
-        #     parameters=[
-        #         {'joystick_deadzone': joystick_deadzone},
-        #         {'turn_sensitivity': turn_sensitivity},
-        #         {'image_compression_quality': image_compression_quality},
-        #         {'debug': debug_mode}
-        #     ]
-        # ),
-        # Node(
-        #     package='moondawg_control',
-        #     executable='serial_node',
-        #     name='serial_node',
-        #     output='screen'
-        # ),
+        Node(
+            package='moondawg_control',
+            executable='controller_parser',
+            name='controller_parser',
+            output='screen',
+            parameters=[
+                {'joystick_deadzone': joystick_deadzone},
+                {'turn_sensitivity': turn_sensitivity},
+                {'image_compression_quality': image_compression_quality},
+                {'debug': debug_mode}
+            ]
+        ),
+        Node(
+            package='moondawg_control',
+            executable='serial_node',
+            name='serial_node',
+            output='screen'
+        ),
         # Node(
         #     package='unitree_lidar_ros2',
         #     executable='unitree_lidar_ros2_node',
@@ -211,24 +210,6 @@ def generate_launch_description():
         #             {'imu_frame': "unilidar_imu"},
         #             {'imu_topic': "unilidar/imu"}]
         # ),
-        # Node(
-        #     package='unitree_lidar_ros2',
-        #     executable='lidar_filter_node',
-        #     name='lidar_filter_node',
-        #     output='screen',
-        #     parameters=[
-        #             {'wall_rejection_distance': 0.3},
-        #             {'ground_height_min': -0.05},
-        #             {'ground_height_max': 0.05},
-        #             # {'target_frame': 'map'},
-        #             {'target_frame': 'unilidar_lidar'}, # For testing
-        #             {'source_frame': 'unilidar_lidar'},
-        #             {'laser_scan_min_angle': -3.14159},
-        #             {'laser_scan_max_angle': 3.14159},
-        #             {'laser_scan_angle_increment': 0.00872664626},
-        #             {'laser_scan_range_min': 0.1},
-        #             {'laser_scan_range_max': 50.0}]
-        # )
         # Node(
         #     package='moondawg_control',
         #     executable='i2c_node',
@@ -250,59 +231,39 @@ def generate_launch_description():
         executable='component_container',
         arguments=['--use-intra-process-comms'],
         composable_node_descriptions=[
-            # RealSense Camera 1
+
+            # --- Camera 1 ---
             ComposableNode(
                 package='realsense2_camera',
                 plugin='realsense2_camera::RealSenseNodeFactory',
                 name='camera1',
                 namespace='realsense',
                 parameters=[{
-                    'serial_no': realsense1_serial,
+                    'serial_no': ParameterValue(realsense1_serial, value_type=str),
+                    'usb_port_id': '3-1',
                     'enable_color': True,
-                    'enable_depth': True,
+                    'enable_depth': False,
                     'enable_infra1': False,
                     'enable_infra2': False,
-                    'rgb_camera.color_profile': '640x360x15',
-                    'depth_module.depth_profile': '640x360x15',
-                    'clip_distance': 3.0, # Example: Clip depth at 3 meters
-                    'allow_no_texture_points': True,
-                    'pointcloud.enable': False,
-                    'enable_sync': False,
-                    'align_depth.enable': True,
-                    'filters': '',
-                    'device_type': 'D435',
-                    'depth_module.global_time_enabled': False,
-                    'enable_auto_exposure': True,
-                }],
-                condition=IfCondition(enable_depth1)
-            ),
-            # RealSense Camera 2
-            ComposableNode(
-                package='realsense2_camera',
-                plugin='realsense2_camera::RealSenseNodeFactory',
-                name='camera2',
-                namespace='realsense',
-                parameters=[{
-                    'serial_no': realsense2_serial,
-                    'enable_color': True,
-                    'enable_depth': True,
-                    'enable_infra1': False,
-                    'enable_infra2': False,
-                    'rgb_camera.color_profile': '640x360x15',
-                    'depth_module.depth_profile': '640x360x15',
+                    'rgb_camera.color_profile': '424x240x15',
+                    'depth_module.depth_profile': '424x240x15',
                     'clip_distance': 3.0,
                     'allow_no_texture_points': True,
                     'pointcloud.enable': False,
-                    'enable_sync': False,
+                    'enable_sync': True,
                     'align_depth.enable': True,
                     'filters': '',
                     'device_type': 'D435',
                     'depth_module.global_time_enabled': False,
                     'enable_auto_exposure': True,
+                    'auto_exposure_priority': False,
+                    'enable_gyro': False,
+                    'enable_accel': False,
                 }],
-                condition=IfCondition(enable_depth2)
+                condition=IfCondition(enable_depth1)
             ),
-            # Compression for RealSense 1 Color
+
+            # --- Compression: RealSense 1 Color ---
             ComposableNode(
                 package='moondawg_camera',
                 plugin='moondawg::CameraComponent',
@@ -317,28 +278,29 @@ def generate_launch_description():
                 ],
                 condition=IfCondition(enable_depth1)
             ),
-            # Compression for RealSense 1 Depth
+
+            # --- Compression: RealSense 1 Depth ---
             ComposableNode(
                 package='moondawg_camera',
                 plugin='moondawg::CameraComponent',
                 name='rs1_depth_compression',
                 parameters=[{
-                    'image_compression_quality': image_compression_quality, 
+                    'image_compression_quality': image_compression_quality,
                     'camera_key': 'rs1_depth',
                     'is_depth_camera': True,
-                    'skip_frames': 1,  # Process every other frame
+                    'skip_frames': 1,
                     'downsample_before_processing': True,
                     'use_optimized_encoding': True,
                     'depth_max_value_mm': 3000
                 }],
                 remappings=[
-                    # Realsense depth is often 16UC1, ensure ImageCompressionNode handles it (e.g. normalize and colormap)
-                    ('image_raw', '/realsense/camera1/depth/image_rect_raw'), 
+                    ('image_raw', '/realsense/camera1/depth/image_rect_raw'),
                     ('image_compressed', '/camera_node/rs1_depth_image')
                 ],
                 condition=IfCondition(enable_depth1)
             ),
-            # Compression for RealSense 2 Color
+
+            # --- Compression: RealSense 2 Color ---
             ComposableNode(
                 package='moondawg_camera',
                 plugin='moondawg::CameraComponent',
@@ -353,7 +315,8 @@ def generate_launch_description():
                 ],
                 condition=IfCondition(enable_depth2)
             ),
-            # Compression for RealSense 2 Depth
+
+            # --- Compression: RealSense 2 Depth ---
             ComposableNode(
                 package='moondawg_camera',
                 plugin='moondawg::CameraComponent',
@@ -362,7 +325,7 @@ def generate_launch_description():
                     'image_compression_quality': image_compression_quality,
                     'camera_key': 'rs2_depth',
                     'is_depth_camera': True,
-                    'skip_frames': 1,  # Process every other frame
+                    'skip_frames': 1,
                     'downsample_before_processing': True,
                     'use_optimized_encoding': True,
                     'depth_max_value_mm': 6000
@@ -373,7 +336,8 @@ def generate_launch_description():
                 ],
                 condition=IfCondition(enable_depth2)
             ),
-            # Compression for USB Camera
+
+            # --- Compression: USB Camera ---
             ComposableNode(
                 package='moondawg_camera',
                 plugin='moondawg::CameraComponent',
@@ -383,12 +347,13 @@ def generate_launch_description():
                     'camera_key': 'usb_main_camera',
                 }],
                 remappings=[
-                    ('image_raw', '/image'), # Subscription
-                    ('image_compressed', '/camera_node/usb_camera_image') # Publication for web UI with unique topic name
+                    ('image_raw', '/image'),
+                    ('image_compressed', '/camera_node/usb_camera_image')
                 ],
                 condition=IfCondition(enable_usb_camera)
             ),
-            # Marker detection for camera 1
+
+            # --- Marker detection: Camera 1 ---
             ComposableNode(
                 package='moondawg_marker',
                 plugin='moondawg::MarkerComponent',
@@ -407,7 +372,8 @@ def generate_launch_description():
                 }],
                 condition=IfCondition(enable_depth1)
             ),
-            # Marker detection for camera 2
+
+            # --- Marker detection: Camera 2 ---
             ComposableNode(
                 package='moondawg_marker',
                 plugin='moondawg::MarkerComponent',
@@ -429,10 +395,49 @@ def generate_launch_description():
         ],
         output='screen',
     )
-    
-    # Create and return launch description
+
+    delayed_camera2 = TimerAction(
+        period=5.0,
+        actions=[
+            LoadComposableNodes(
+                target_container='camera_processing_container',
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package='realsense2_camera',
+                        plugin='realsense2_camera::RealSenseNodeFactory',
+                        name='camera2',
+                        namespace='realsense',
+                        parameters=[{
+                            'serial_no': ParameterValue(realsense2_serial, value_type=str),
+                            'enable_color': True,
+                            'enable_depth': False,
+                            'enable_infra1': False,
+                            'enable_infra2': False,
+                            'rgb_camera.color_profile': '424x240x15',
+                            'depth_module.depth_profile': '424x240x15',
+                            'clip_distance': 3.0,
+                            'allow_no_texture_points': True,
+                            'pointcloud.enable': False,
+                            'enable_sync': False,
+                            'align_depth.enable': True,
+                            'filters': '',
+                            'device_type': 'D435',
+                            'depth_module.global_time_enabled': False,
+                            'enable_auto_exposure': True,
+                            'auto_exposure_priority': False,
+                            'enable_gyro': False,
+                            'enable_accel': False,
+                        }],
+                        condition=IfCondition(enable_depth2)
+                    ),
+                ]
+            )
+        ]
+    )
+
     ld = LaunchDescription(args + regular_nodes)
-    ld.add_action(shared_container) # Add the container with compression nodes and RealSense cameras
+    ld.add_action(shared_container)
+    ld.add_action(delayed_camera2)
     return ld
 
 if __name__ == '__main__':

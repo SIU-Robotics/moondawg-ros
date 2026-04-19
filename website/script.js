@@ -70,31 +70,31 @@ var buttonTopic = new ROSLIB.Topic({
 });
 
 // Camera node topics
-var cameraNodeImageTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/camera_node/usb_camera_image", // Changed to match the new topic name in launch file
-  messageType: "std_msgs/String",
-});
+// var cameraNodeImageTopic = new ROSLIB.Topic({
+//   ros: ros,
+//   name: "/camera_node/usb_camera_image", // Changed to match the new topic name in launch file
+//   messageType: "std_msgs/String",
+// });
 var cameraNodeRS1ColorTopic = new ROSLIB.Topic({
   ros: ros,
   name: "/camera_node/rs1_color_image",
   messageType: "std_msgs/String",
 });
-var cameraNodeRS1DepthTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/camera_node/rs1_depth_image",
-  messageType: "std_msgs/String",
-});
+// var cameraNodeRS1DepthTopic = new ROSLIB.Topic({
+//   ros: ros,
+//   name: "/camera_node/rs1_depth_image",
+//   messageType: "std_msgs/String",
+// });
 var cameraNodeRS2ColorTopic = new ROSLIB.Topic({
   ros: ros,
   name: "/camera_node/rs2_color_image",
   messageType: "std_msgs/String",
 });
-var cameraNodeRS2DepthTopic = new ROSLIB.Topic({
-  ros: ros,
-  name: "/camera_node/rs2_depth_image",
-  messageType: "std_msgs/String",
-});
+// var cameraNodeRS2DepthTopic = new ROSLIB.Topic({
+//   ros: ros,
+//   name: "/camera_node/rs2_depth_image",
+//   messageType: "std_msgs/String",
+// });
 
 // Diagnostic topics
 var controllerDiagTopic = new ROSLIB.Topic({
@@ -126,13 +126,13 @@ function updateImageWithMimeType(imgElement, data) {
   imgElement.src = fixed;
 }
 
-// Subscribe to camera node topics
-cameraNodeImageTopic.subscribe(function (message) {
-  updateImageWithMimeType(
-    document.getElementById("camera_node_video"),
-    message.data
-  );
-});
+// // Subscribe to camera node topics
+// cameraNodeImageTopic.subscribe(function (message) {
+//   updateImageWithMimeType(
+//     document.getElementById("camera_node_video"),
+//     message.data
+//   );
+// });
 
 cameraNodeRS1ColorTopic.subscribe(function (message) {
   updateImageWithMimeType(
@@ -141,12 +141,12 @@ cameraNodeRS1ColorTopic.subscribe(function (message) {
   );
 });
 
-cameraNodeRS1DepthTopic.subscribe(function (message) {
-  updateImageWithMimeType(
-    document.getElementById("camera_node_rs1_depth"),
-    message.data
-  );
-});
+// cameraNodeRS1DepthTopic.subscribe(function (message) {
+//   updateImageWithMimeType(
+//     document.getElementById("camera_node_rs1_depth"),
+//     message.data
+//   );
+// });
 
 cameraNodeRS2ColorTopic.subscribe(function (message) {
   updateImageWithMimeType(
@@ -155,12 +155,12 @@ cameraNodeRS2ColorTopic.subscribe(function (message) {
   );
 });
 
-cameraNodeRS2DepthTopic.subscribe(function (message) {
-  updateImageWithMimeType(
-    document.getElementById("camera_node_rs2_depth"),
-    message.data
-  );
-});
+// cameraNodeRS2DepthTopic.subscribe(function (message) {
+//   updateImageWithMimeType(
+//     document.getElementById("camera_node_rs2_depth"),
+//     message.data
+//   );
+// });
 
 controllerDiagTopic.subscribe(function (message) {
   document.getElementById("controller_diag").innerHTML = message.message;

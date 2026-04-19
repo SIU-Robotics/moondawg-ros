@@ -74,8 +74,8 @@ class CameraPreset:
 # May need to +180 to yaw #'s depending on how its mounted
 CAMERA_PRESETS = [
     (0, 90),    # HOPPER: Looking inside hopper
-    (90, 90),   # DOWN: Looking where its digging
-    (180, 90)   # UP: Looking away from the robot
+    (80, 90),   # DIG: Looking where its digging
+    (170, 90)   # SIDE: Looking away from the robot
 ]
 
 def clamp(value: float, low: float, high: float) -> float:
