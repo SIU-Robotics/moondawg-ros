@@ -26,17 +26,6 @@ def generate_launch_description():
     joystick_deadzone = LaunchConfiguration('joystick_deadzone', default='0.1')
     turn_sensitivity = LaunchConfiguration('turn_sensitivity', default='0.5')
     image_compression_quality = LaunchConfiguration('image_compression_quality', default='20')
-
-    # Marker detection parameters
-    enable_marker_detection = LaunchConfiguration('enable_marker_detection', default='false')
-    marker_camera_id = LaunchConfiguration('marker_camera_id', default='1')
-    hsv_h_min = LaunchConfiguration('hsv_h_min', default='5')
-    hsv_h_max = LaunchConfiguration('hsv_h_max', default='25')
-    hsv_s_min = LaunchConfiguration('hsv_s_min', default='100')
-    hsv_s_max = LaunchConfiguration('hsv_s_max', default='255')
-    hsv_v_min = LaunchConfiguration('hsv_v_min', default='100')
-    hsv_v_max = LaunchConfiguration('hsv_v_max', default='255')
-    min_marker_area = LaunchConfiguration('min_marker_area', default='100')
     
     args = [
         DeclareLaunchArgument(
@@ -103,51 +92,6 @@ def generate_launch_description():
             'image_compression_quality',
             default_value='20',
             description='Image compression quality (1-100)'
-        ),
-        DeclareLaunchArgument(
-            'enable_marker_detection',
-            default_value='true',
-            description='Enable marker detection for dump zone localization'
-        ),
-        DeclareLaunchArgument(
-            'marker_camera_id',
-            default_value='1',
-            description='Which camera to use for marker detection (1 or 2)'
-        ),
-        DeclareLaunchArgument(
-            'hsv_h_min',
-            default_value='5',
-            description='HSV H minimum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'hsv_h_max',
-            default_value='25',
-            description='HSV H maximum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'hsv_s_min',
-            default_value='100',
-            description='HSV S minimum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'hsv_s_max',
-            default_value='255',
-            description='HSV S maximum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'hsv_v_min',
-            default_value='100',
-            description='HSV V minimum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'hsv_v_max',
-            default_value='255',
-            description='HSV V maximum threshold for orange marker detection'
-        ),
-        DeclareLaunchArgument(
-            'min_marker_area',
-            default_value='100',
-            description='Minimum contour area to be considered a marker'
         ),
     ]
     
@@ -351,46 +295,6 @@ def generate_launch_description():
                     ('image_compressed', '/camera_node/usb_camera_image')
                 ],
                 condition=IfCondition(enable_usb_camera)
-            ),
-
-            # --- Marker detection: Camera 1 ---
-            ComposableNode(
-                package='moondawg_marker',
-                plugin='moondawg::MarkerComponent',
-                name='marker_detector_camera1',
-                parameters=[{
-                    'camera_topic_prefix': '/realsense/camera1',
-                    'hsv_h_min': hsv_h_min,
-                    'hsv_h_max': hsv_h_max,
-                    'hsv_s_min': hsv_s_min,
-                    'hsv_s_max': hsv_s_max,
-                    'hsv_v_min': hsv_v_min,
-                    'hsv_v_max': hsv_v_max,
-                    'min_marker_area': min_marker_area,
-                    'expected_marker_count': 4,
-                    'enable_debug_output': True,
-                }],
-                condition=IfCondition(enable_depth1)
-            ),
-
-            # --- Marker detection: Camera 2 ---
-            ComposableNode(
-                package='moondawg_marker',
-                plugin='moondawg::MarkerComponent',
-                name='marker_detector_camera2',
-                parameters=[{
-                    'camera_topic_prefix': '/realsense/camera2',
-                    'hsv_h_min': hsv_h_min,
-                    'hsv_h_max': hsv_h_max,
-                    'hsv_s_min': hsv_s_min,
-                    'hsv_s_max': hsv_s_max,
-                    'hsv_v_min': hsv_v_min,
-                    'hsv_v_max': hsv_v_max,
-                    'min_marker_area': min_marker_area,
-                    'expected_marker_count': 4,
-                    'enable_debug_output': False,
-                }],
-                condition=IfCondition(enable_depth2)
             ),
         ],
         output='screen',
