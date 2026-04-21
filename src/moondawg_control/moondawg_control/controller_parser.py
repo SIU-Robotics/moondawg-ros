@@ -238,11 +238,11 @@ class ControllerParser(Node):
         
         # Define dig automation sequence
         self.automation_actions = [
-            (lambda: self._set_belt_position(UP), 1.0),  # Raise actuators for 1 sec
-            (lambda: self._set_belt_speed(MOTOR_FULL_FORWARD), 1.0),  # Run belt forward for digging for 1 sec
-            (lambda: self._set_belt_speed(MOTOR_STOPPED), 0.0),  # Stop belt immediately
-            (lambda: self._set_belt_position(DOWN), 1.0),  # Lower actuators for 1 sec
-            (lambda: self.stop_dig_automation(), 0.0)  # Stop automation
+            (lambda: self._set_belt_position(UP), 5.0),  # Raise actuators for 5 sec
+            (lambda: self._set_belt_speed(MOTOR_FULL_FORWARD), 5.0),  # Run belt forward for digging for 5 sec
+            (lambda: self._set_belt_speed(MOTOR_STOPPED), 1.0),  # Stop belt, wait 1 sec
+            (lambda: self._set_belt_position(DOWN), 5.0),  # Lower actuators for 5 sec
+            (lambda: None, 0.0)  # End marker - callback will stop automation
         ]
 
     # ------------------- Callback handlers -------------------
@@ -972,6 +972,7 @@ class ControllerParser(Node):
         
         # Execute first action
         self.automation_actions[self.automation_step][0]()
+        self.get_logger().info(f"Executed automation step {self.automation_step + 1}/{len(self.automation_actions)}")
         
         # Set timer for next step
         duration = self.automation_actions[self.automation_step][1]
@@ -982,16 +983,28 @@ class ControllerParser(Node):
         """
         Callback for automation timer to proceed to next step.
         """
+        # Cancel any pending timer first to prevent orphaned timers
+        if self.automation_timer:
+            self.automation_timer.cancel()
+            self.automation_timer = None
+        
+        # Check if automation was stopped (e.g., by a 0-duration step)
+        if not self.is_automating:
+            self.get_logger().info("Dig automation cancelled mid-sequence")
+            return
+            
         self.automation_step += 1
         if self.automation_step < len(self.automation_actions):
             # Execute next action
             self.automation_actions[self.automation_step][0]()
+            self.get_logger().info(f"Executed automation step {self.automation_step + 1}/{len(self.automation_actions)}")
             
             # Set timer for next step
             duration = self.automation_actions[self.automation_step][1]
             if duration > 0:
                 self.automation_timer = self.create_timer(duration, self._automation_timer_callback)
             else:
+                # 0 duration means stop here
                 self.stop_dig_automation()
         else:
             self.stop_dig_automation()
@@ -1000,10 +1013,11 @@ class ControllerParser(Node):
         """
         Stop the dig automation sequence.
         """
-        self.is_automating = False
+        # Cancel timer FIRST before setting flag
         if self.automation_timer:
             self.automation_timer.cancel()
             self.automation_timer = None
+        self.is_automating = False
         self.get_logger().info("Dig automation stopped")
 
 def main(args=None):
