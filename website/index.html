@@ -153,7 +153,7 @@
                 <div class="row slim-row">
                     
                     <!-- Camera Node Feeds -->
-                    <div class="col-md-12">
+                    <div class="col-lg-8">
                         <div class="card mb-2">
                             <div class="card-header d-flex justify-content-between align-items-center p-2">
                                 <h6 class="mb-0">Camera Node Feeds</h6>
@@ -200,10 +200,49 @@
                                         </div>
                                     </div>
                                 </div> -->
+                                </div>
                             </div>
                         </div>
                     </div>
                     
+                    <!-- Controller Mapping - right of camera feeds -->
+                    <div class="col-lg-4">
+                        <div class="controller-map">
+                            <h5 class="text-center mb-2">Controller Mapping</h5>
+                            <table class="table table-sm table-hover compact-table mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="30%">Button/Control</th>
+                                        <th width="50%">Function</th>
+                                        <th width="20%">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr id="mapping-button-lb" class="controller-mapping-row"><td><b>Left Bumper</b></td><td>Belt</td><td class="controller-value" data-control="button-lb">-</td></tr>
+                                    <tr id="mapping-button-ls" class="controller-mapping-row"><td><b>L3</b></td><td>Unused</td><td class="controller-value" data-control="button-ls">-</td></tr>
+                                    <tr id="mapping-button-rb" class="controller-mapping-row"><td><b>Right Bumper</b></td><td>Unused</td><td class="controller-value" data-control="button-rb">-</td></tr>
+                                    <tr id="mapping-button-rs" class="controller-mapping-row"><td><b>R3</b></td><td>Unused</td><td class="controller-value" data-control="button-rs">-</td></tr>
+                                    <tr id="mapping-button-back" class="controller-mapping-row"><td><b>Select</b></td><td>Unused</td><td class="controller-value" data-control="button-back">-</td></tr>
+                                    <tr id="mapping-button-start" class="controller-mapping-row"><td><b>Start</b></td><td>Unused</td><td class="controller-value" data-control="button-start">-</td></tr>
+                                    <tr id="mapping-dpad-up" class="controller-mapping-row"><td><b>D-Pad Up</b></td><td>Raise belt</td><td class="controller-value" data-control="dpad-up">-</td></tr>
+                                    <tr id="mapping-dpad-down" class="controller-mapping-row"><td><b>D-Pad Down</b></td><td>Lower belt</td><td class="controller-value" data-control="dpad-down">-</td></tr>
+                                    <tr id="mapping-dpad-left" class="controller-mapping-row"><td><b>D-Pad Left</b></td><td>Dig Automation</td><td class="controller-value" data-control="dpad-left">-</td></tr>
+                                    <tr id="mapping-dpad-right" class="controller-mapping-row"><td><b>D-Pad Right</b></td><td>Unused</td><td class="controller-value" data-control="dpad-right">-</td></tr>
+                                    <tr id="mapping-button-y" class="controller-mapping-row"><td><b>X Button</b></td><td>Camera Preset</td><td class="controller-value" data-control="button-y">-</td></tr>
+                                    <tr id="mapping-button-x" class="controller-mapping-row"><td><b>Y Button</b></td><td>Deposit</td><td class="controller-value" data-control="button-x">-</td></tr>
+                                    <tr id="mapping-button-a" class="controller-mapping-row"><td><b>A Button</b></td><td>Vibrate</td><td class="controller-value" data-control="button-a">-</td></tr>
+                                    <tr id="mapping-button-b" class="controller-mapping-row"><td><b>B Button</b></td><td>Reverse Belt</td><td class="controller-value" data-control="button-b">-</td></tr>
+                                    <tr id="mapping-left-stick-x" class="controller-mapping-row"><td><b>Left Joystick (X)</b></td><td>Point wheels (left/right)</td><td class="controller-value" data-control="left-stick-x">-</td></tr>
+                                    <tr id="mapping-left-stick-y" class="controller-mapping-row"><td><b>Left Joystick (Y)</b></td><td>Point wheels (front/back)</td><td class="controller-value" data-control="left-stick-y">-</td></tr>
+                                    <tr id="mapping-right-stick-x" class="controller-mapping-row"><td><b>Right Joystick (X)</b></td><td>Rotate Robot</td><td class="controller-value" data-control="right-stick-x">-</td></tr>
+                                    <tr id="mapping-right-stick-y" class="controller-mapping-row"><td><b>Right Joystick (Y)</b></td><td>Unused</td><td class="controller-value" data-control="right-stick-y">-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row slim-row">
                     <div class="col-md-4">
                         <!-- Status and diagnostics -->
                         <div class="card mb-2">
@@ -279,42 +318,6 @@
                     <div class="card-body p-2">
                         <div id="params-display" class="small" style="max-height: 100px; overflow-y: auto;">Loading parameters...</div>
                     </div>
-                </div>
-            </div>
-            
-            <!-- Right column with controller mapping -->
-            <div class="col-lg-4 ps-lg-2">
-                <div class="controller-map">
-                    <h5 class="text-center mb-2">Controller Mapping</h5>
-                    <table class="table table-sm table-hover compact-table mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="30%">Button/Control</th>
-                                <th width="50%">Function</th>
-                                <th width="20%">Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr id="mapping-button-lb" class="controller-mapping-row"><td><b>Left Bumper</b></td><td>Belt</td><td class="controller-value" data-control="button-lb">-</td></tr>
-                            <tr id="mapping-button-ls" class="controller-mapping-row"><td><b>L3</b></td><td>Unused</td><td class="controller-value" data-control="button-ls">-</td></tr>
-                            <tr id="mapping-button-rb" class="controller-mapping-row"><td><b>Right Bumper</b></td><td>Unused</td><td class="controller-value" data-control="button-rb">-</td></tr>
-                            <tr id="mapping-button-rs" class="controller-mapping-row"><td><b>R3</b></td><td>Unused</td><td class="controller-value" data-control="button-rs">-</td></tr>
-                            <tr id="mapping-button-back" class="controller-mapping-row"><td><b>Select</b></td><td>Unused</td><td class="controller-value" data-control="button-back">-</td></tr>
-                            <tr id="mapping-button-start" class="controller-mapping-row"><td><b>Start</b></td><td>Unused</td><td class="controller-value" data-control="button-start">-</td></tr>
-                            <tr id="mapping-dpad-up" class="controller-mapping-row"><td><b>D-Pad Up</b></td><td>Raise belt</td><td class="controller-value" data-control="dpad-up">-</td></tr>
-                            <tr id="mapping-dpad-down" class="controller-mapping-row"><td><b>D-Pad Down</b></td><td>Lower belt</td><td class="controller-value" data-control="dpad-down">-</td></tr>
-                            <tr id="mapping-dpad-left" class="controller-mapping-row"><td><b>D-Pad Left</b></td><td>Unused</td><td class="controller-value" data-control="dpad-left">-</td></tr>
-                            <tr id="mapping-dpad-right" class="controller-mapping-row"><td><b>D-Pad Right</b></td><td>Unused</td><td class="controller-value" data-control="dpad-right">-</td></tr>
-                            <tr id="mapping-button-y" class="controller-mapping-row"><td><b>X Button</b></td><td>Camera Preset</td><td class="controller-value" data-control="button-y">-</td></tr>
-                            <tr id="mapping-button-x" class="controller-mapping-row"><td><b>Y Button</b></td><td>Deposit</td><td class="controller-value" data-control="button-x">-</td></tr>
-                            <tr id="mapping-button-a" class="controller-mapping-row"><td><b>A Button</b></td><td>Vibrate</td><td class="controller-value" data-control="button-a">-</td></tr>
-                            <tr id="mapping-button-b" class="controller-mapping-row"><td><b>B Button</b></td><td>Reverse Belt</td><td class="controller-value" data-control="button-b">-</td></tr>
-                            <tr id="mapping-left-stick-x" class="controller-mapping-row"><td><b>Left Joystick (X)</b></td><td>Point wheels (left/right)</td><td class="controller-value" data-control="left-stick-x">-</td></tr>
-                            <tr id="mapping-left-stick-y" class="controller-mapping-row"><td><b>Left Joystick (Y)</b></td><td>Point wheels (front/back)</td><td class="controller-value" data-control="left-stick-y">-</td></tr>
-                            <tr id="mapping-right-stick-x" class="controller-mapping-row"><td><b>Right Joystick (X)</b></td><td>Rotate Robot</td><td class="controller-value" data-control="right-stick-x">-</td></tr>
-                            <tr id="mapping-right-stick-y" class="controller-mapping-row"><td><b>Right Joystick (Y)</b></td><td>Unused</td><td class="controller-value" data-control="right-stick-y">-</td></tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>
