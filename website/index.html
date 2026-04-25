@@ -74,11 +74,26 @@
             text-align: center;
             margin: 6px 0;
         }
+        .camera-feed-row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            overflow-x: hidden;
+            width: 100%;
+            padding-bottom: 8px;
+        }
+        .camera-feed-item {
+            flex: 0 0 calc(50% - 4px);
+            max-width: calc(50% - 4px);
+        }
         .video-thumbnail {
+            width: 100%;
             max-width: 100%;
             height: auto;
+            min-height: 420px;
             border-radius: 6px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            object-fit: contain;
         }
         .camera-caption {
             font-size: 0.85rem;
@@ -159,9 +174,9 @@
                                 <h6 class="mb-0">Camera Node Feeds</h6>
                             </div>
                             <div class="card-body p-2">
-                                <div class="row">
+                                <div class="camera-feed-row">
                                     <!-- USB Camera Feed -->
-                                    <!-- <div class="col-md-4">
+                                    <!-- <div class="camera-feed-item">
                                         <div class="video-container">
                                             <img src="novideo.png" id="camera_node_video" class="video-thumbnail"></img>
                                             <div class="camera-caption">Camera Node - USB</div>
@@ -169,7 +184,7 @@
                                     </div> -->
                                     
                                     <!-- RealSense 1 Color Feed -->
-                                    <div class="col-md-4">
+                                    <div class="camera-feed-item">
                                         <div class="video-container">
                                             <img src="novideo.png" id="camera_node_rs1_color" class="video-thumbnail"></img>
                                             <div class="camera-caption">Camera Node - RS1 RGB</div>
@@ -177,7 +192,7 @@
                                     </div>
                                     
                                     <!-- RealSense 1 Depth Feed -->
-                                    <!-- <div class="col-md-4">
+                                    <!-- <div class="camera-feed-item">
                                         <div class="video-container">
                                             <img src="novideo.png" id="camera_node_rs1_depth" class="video-thumbnail"></img>
                                             <div class="camera-caption">Camera Node - RS1 Depth</div>
@@ -185,7 +200,7 @@
                                     </div> -->
                                     
                                     <!-- RealSense 2 Color Feed -->
-                                    <div class="col-md-4">
+                                    <div class="camera-feed-item">
                                         <div class="video-container">
                                             <img src="novideo.png" id="camera_node_rs2_color" class="video-thumbnail"></img>
                                             <div class="camera-caption">Camera Node - RS2 RGB</div>
@@ -193,13 +208,12 @@
                                     </div>
                                     
                                     <!-- RealSense 2 Depth Feed -->
-                                    <!-- <div class="col-md-4">
+                                    <!-- <div class="camera-feed-item">
                                         <div class="video-container">
                                             <img src="novideo.png" id="camera_node_rs2_depth" class="video-thumbnail"></img>
                                             <div class="camera-caption">Camera Node - RS2 Depth</div>
                                         </div>
-                                    </div>
-                                </div> -->
+                                    </div> -->
                                 </div>
                             </div>
                         </div>
