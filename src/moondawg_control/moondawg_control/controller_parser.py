@@ -8,11 +8,13 @@ import json
 from typing import Tuple, Union, Dict, List, Any
 
 # Motor speed constants
+BELT_FORWARD_SPEED = 110
 BELT_REVERSE_SPEED = 30
 MOTOR_STOPPED = 90
 MOTOR_FULL_FORWARD = 110
 MOTOR_FULL_REVERSE = 70
 CAMERA_CENTER = 90
+VIBE_MOTOR_ON = 110
 
 # Deposition command constants
 AUGER = 1
@@ -27,8 +29,8 @@ UP = 180
 DOWN = 0
 
 # Servo movement constants
-SERVO_STEP_SIZE = 5  # Degrees to move per update
-SERVO_UPDATE_RATE = 0.05  # Seconds between servo position updates
+SERVO_STEP_SIZE = 1  # Degrees to move per update was 5
+SERVO_UPDATE_RATE = 0.15  # Seconds between servo position updates was 0.05
 WHEEL_SPEED_STEP_SIZE = 2  # Speed increment per update
 
 SERVO_INDEXES = {
@@ -497,7 +499,7 @@ class ControllerParser(Node):
         if buttons["lbutton"] != self.lbutton:
             self.lbutton = buttons["lbutton"]
             if self.lbutton:
-                self._set_belt_speed(MOTOR_FULL_FORWARD)
+                self._set_belt_speed(BELT_FORWARD_SPEED)
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
 
@@ -520,7 +522,7 @@ class ControllerParser(Node):
         if buttons["button_a"] != self.button_a:
             self.button_a = buttons["button_a"]
             if self.button_a:
-                self._set_vibrator(MOTOR_FULL_FORWARD)
+                self._set_vibrator(VIBE_MOTOR_ON)
             else:
                 self._set_vibrator(MOTOR_STOPPED)
                 
@@ -588,7 +590,8 @@ class ControllerParser(Node):
         Set the vibrator state.
         
         Args:
-            state: The state to set (ON, OFF)
+            state: The speed/value to send to the vibe motor.
+                   Use VIBE_MOTOR_ON for activation and MOTOR_STOPPED to disable.
         """
         self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.VIBE_MOTOR, state])
 
