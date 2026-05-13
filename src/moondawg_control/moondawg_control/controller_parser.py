@@ -15,6 +15,7 @@ MOTOR_FULL_FORWARD = 110
 MOTOR_FULL_REVERSE = 70
 CAMERA_CENTER = 90
 VIBE_MOTOR_ON = 110
+AUGER_MOTOR_SPEED = 110
 
 # Deposition command constants
 AUGER = 1
@@ -514,7 +515,7 @@ class ControllerParser(Node):
         if buttons["button_x"] != self.button_x:
             self.button_x = buttons["button_x"]
             if self.button_x:
-                self._set_auger_deposition(MOTOR_FULL_FORWARD)
+                self._set_auger_deposition(AUGER_MOTOR_SPEED)
             else:
                 self._set_auger_deposition(MOTOR_STOPPED)
 
