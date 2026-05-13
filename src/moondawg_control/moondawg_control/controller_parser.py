@@ -77,7 +77,11 @@ class CameraPreset:
 # May need to +180 to yaw #'s depending on how its mounted
 CAMERA_PRESETS = [
     (0, 90),    # HOPPER: Looking inside hopper
+<<<<<<< HEAD
     (80, 90),   # DIG: Looking where its digging
+=======
+    (120, 90),   # DIG: Looking where its digging
+>>>>>>> 24552da688d05dbde2209a760e92d0fb9e5f3279
     (170, 90)   # SIDE: Looking away from the robot
 ]
 
