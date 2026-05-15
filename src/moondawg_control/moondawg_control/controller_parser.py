@@ -77,11 +77,7 @@ class CameraPreset:
 # May need to +180 to yaw #'s depending on how its mounted
 CAMERA_PRESETS = [
     (0, 90),    # HOPPER: Looking inside hopper
-<<<<<<< HEAD
     (80, 90),   # DIG: Looking where its digging
-=======
-    (120, 90),   # DIG: Looking where its digging
->>>>>>> 24552da688d05dbde2209a760e92d0fb9e5f3279
     (170, 90)   # SIDE: Looking away from the robot
 ]
 
@@ -167,11 +163,6 @@ class ControllerParser(Node):
         }
         self.target_wheel_speeds = dict(self.current_wheel_speeds)
         
-        # Dig automation state
-        self.is_automating = False
-        self.automation_step = 0
-        self.automation_timer = None
-        
         # Diagnostic status setup
         self.diagnostic_status = DiagnosticStatus(
             name=self.get_name(), 
@@ -242,15 +233,6 @@ class ControllerParser(Node):
         
         # Set initial diagnostic status
         self.set_diagnostic_status(DiagnosticStatus.OK, "Controller parser ready")
-        
-        # Define dig automation sequence
-        self.automation_actions = [
-            (lambda: self._set_belt_position(UP), 5.0),  # Raise actuators for 5 sec
-            (lambda: self._set_belt_speed(MOTOR_FULL_FORWARD), 5.0),  # Run belt forward for digging for 5 sec
-            (lambda: self._set_belt_speed(MOTOR_STOPPED), 1.0),  # Stop belt, wait 1 sec
-            (lambda: self._set_belt_position(DOWN), 5.0),  # Lower actuators for 5 sec
-            (lambda: None, 0.0)  # End marker - callback will stop automation
-        ]
 
     # ------------------- Callback handlers -------------------
 
@@ -536,12 +518,6 @@ class ControllerParser(Node):
             self.button_y = buttons["button_y"]
             if self.button_y:
                 self._cycle_camera_preset()
-                
-        # D-pad left => start dig automation
-        if buttons["dpad_left"] != self.dpad_left:
-            self.dpad_left = buttons["dpad_left"]
-            if self.dpad_left:
-                self.start_dig_automation()
 
     # ------------------- Helper methods -------------------
 
@@ -685,9 +661,6 @@ class ControllerParser(Node):
 
         # Stop deposit/auger
         self._set_auger_deposition(MOTOR_STOPPED)
-        
-        # Stop dig automation
-        self.stop_dig_automation()
         
         self.get_logger().info("All movement stopped")
 
@@ -965,68 +938,6 @@ class ControllerParser(Node):
         """
         next_preset = (self.current_camera_preset + 1) % CameraPreset.COUNT
         self._set_camera_preset(next_preset)
-
-    def start_dig_automation(self) -> None:
-        """
-        Start the dig automation sequence.
-        """
-        if self.is_automating:
-            self.get_logger().info("Dig automation already running")
-            return
-        
-        self.get_logger().info("Starting dig automation")
-        self.is_automating = True
-        self.automation_step = 0
-        
-        # Execute first action
-        self.automation_actions[self.automation_step][0]()
-        self.get_logger().info(f"Executed automation step {self.automation_step + 1}/{len(self.automation_actions)}")
-        
-        # Set timer for next step
-        duration = self.automation_actions[self.automation_step][1]
-        if duration > 0:
-            self.automation_timer = self.create_timer(duration, self._automation_timer_callback)
-
-    def _automation_timer_callback(self) -> None:
-        """
-        Callback for automation timer to proceed to next step.
-        """
-        # Cancel any pending timer first to prevent orphaned timers
-        if self.automation_timer:
-            self.automation_timer.cancel()
-            self.automation_timer = None
-        
-        # Check if automation was stopped (e.g., by a 0-duration step)
-        if not self.is_automating:
-            self.get_logger().info("Dig automation cancelled mid-sequence")
-            return
-            
-        self.automation_step += 1
-        if self.automation_step < len(self.automation_actions):
-            # Execute next action
-            self.automation_actions[self.automation_step][0]()
-            self.get_logger().info(f"Executed automation step {self.automation_step + 1}/{len(self.automation_actions)}")
-            
-            # Set timer for next step
-            duration = self.automation_actions[self.automation_step][1]
-            if duration > 0:
-                self.automation_timer = self.create_timer(duration, self._automation_timer_callback)
-            else:
-                # 0 duration means stop here
-                self.stop_dig_automation()
-        else:
-            self.stop_dig_automation()
-
-    def stop_dig_automation(self) -> None:
-        """
-        Stop the dig automation sequence.
-        """
-        # Cancel timer FIRST before setting flag
-        if self.automation_timer:
-            self.automation_timer.cancel()
-            self.automation_timer = None
-        self.is_automating = False
-        self.get_logger().info("Dig automation stopped")
 
 def main(args=None):
     """Main entry point for the node."""
