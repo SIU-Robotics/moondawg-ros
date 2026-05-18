@@ -8,11 +8,14 @@ import json
 from typing import Tuple, Union, Dict, List, Any
 
 # Motor speed constants
+BELT_FORWARD_SPEED = 110
 BELT_REVERSE_SPEED = 30
 MOTOR_STOPPED = 90
 MOTOR_FULL_FORWARD = 110
 MOTOR_FULL_REVERSE = 70
 CAMERA_CENTER = 90
+VIBE_MOTOR_ON = 110
+AUGER_MOTOR_SPEED = 110
 
 # Deposition command constants
 AUGER = 1
@@ -27,8 +30,8 @@ UP = 180
 DOWN = 0
 
 # Servo movement constants
-SERVO_STEP_SIZE = 5  # Degrees to move per update
-SERVO_UPDATE_RATE = 0.05  # Seconds between servo position updates
+SERVO_STEP_SIZE = 1  # Degrees to move per update was 5
+SERVO_UPDATE_RATE = 0.15  # Seconds between servo position updates was 0.05
 WHEEL_SPEED_STEP_SIZE = 2  # Speed increment per update
 
 SERVO_INDEXES = {
@@ -65,16 +68,17 @@ class ExcavationMotor:
 
 # Camera position presets
 class CameraPreset:
-    FORWARD = 0
-    DOWN = 1
-    UP = 2
+    HOPPER = 0
+    DIG = 1
+    SIDE = 2
     COUNT = 3  # Total number of presets
 
 # Camera preset configurations (yaw, pitch)
+# May need to +180 to yaw #'s depending on how its mounted
 CAMERA_PRESETS = [
-    (90, 90),    # FORWARD: Center position
-    (90, 150),   # DOWN: Looking down
-    (90, 30)     # UP: Looking up
+    (0, 90),    # HOPPER: Looking inside hopper
+    (80, 90),   # DIG: Looking where its digging
+    (170, 90)   # SIDE: Looking away from the robot
 ]
 
 def clamp(value: float, low: float, high: float) -> float:
@@ -140,7 +144,7 @@ class ControllerParser(Node):
         self.i2c_command_history = {}
         
         # Track current camera preset
-        self.current_camera_preset = CameraPreset.FORWARD
+        self.current_camera_preset = CameraPreset.DIG
         
         # Track steering positions for condensed display
         self.current_steering_positions = {1: 90, 2: 90, 3: 90, 4: 90}
@@ -482,7 +486,7 @@ class ControllerParser(Node):
         if buttons["lbutton"] != self.lbutton:
             self.lbutton = buttons["lbutton"]
             if self.lbutton:
-                self._set_belt_speed(MOTOR_FULL_FORWARD)
+                self._set_belt_speed(BELT_FORWARD_SPEED)
             else:
                 self._set_belt_speed(MOTOR_STOPPED)
 
@@ -497,7 +501,7 @@ class ControllerParser(Node):
         if buttons["button_x"] != self.button_x:
             self.button_x = buttons["button_x"]
             if self.button_x:
-                self._set_auger_deposition(MOTOR_FULL_FORWARD)
+                self._set_auger_deposition(AUGER_MOTOR_SPEED)
             else:
                 self._set_auger_deposition(MOTOR_STOPPED)
 
@@ -505,7 +509,7 @@ class ControllerParser(Node):
         if buttons["button_a"] != self.button_a:
             self.button_a = buttons["button_a"]
             if self.button_a:
-                self._set_vibrator(MOTOR_FULL_FORWARD)
+                self._set_vibrator(VIBE_MOTOR_ON)
             else:
                 self._set_vibrator(MOTOR_STOPPED)
                 
@@ -567,7 +571,8 @@ class ControllerParser(Node):
         Set the vibrator state.
         
         Args:
-            state: The state to set (ON, OFF)
+            state: The speed/value to send to the vibe motor.
+                   Use VIBE_MOTOR_ON for activation and MOTOR_STOPPED to disable.
         """
         self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.VIBE_MOTOR, state])
 
@@ -924,7 +929,7 @@ class ControllerParser(Node):
         self.send_i2c(I2CAddress.EXCAVATION_SYSTEM, [ExcavationMotor.CAMERA_PITCH, pitch])
         
         # Log the change
-        preset_names = ["FORWARD", "DOWN", "UP"]
+        preset_names = ["HOPPER", "DIG", "SIDE"]
         self.get_logger().info(f"Camera preset set to {preset_names[preset]}")
         
     def _cycle_camera_preset(self) -> None:

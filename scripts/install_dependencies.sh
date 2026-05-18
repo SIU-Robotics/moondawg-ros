@@ -12,6 +12,14 @@ apt install ros-jazzy-cv-bridge ros-jazzy-rosbridge-suite ros-jazzy-image-tools 
 apt install ros-jazzy-realsense2* -y
 apt install ros-jazzy-librealsense2* -y
 apt install python3-opencv python3-smbus2 -y
+apt install -y \
+  ros-jazzy-tf2-ros \
+  ros-jazzy-tf2-geometry-msgs \
+  ros-jazzy-rclcpp-components \
+  ros-jazzy-geometry-msgs
+apt install libboost-all-dev -y
+apt install libpcl-dev -y
+
 
 git clone https://github.com/IntelRealSense/librealsense
 cd librealsense
